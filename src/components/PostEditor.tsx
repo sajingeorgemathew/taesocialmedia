@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   FORMATS,
   PLATFORMS,
   PROGRAMS,
   STATUSES,
+  type ArtworkAsset,
   type ContentFormat,
   type Platform,
   type PostDraft,
@@ -11,17 +12,39 @@ import {
 } from '../types'
 import { isValidDateKey } from '../utils/date'
 import { statusSlug } from '../utils/posts'
+import { SavedArtwork, StagedArtwork, type StagedFile } from './ArtworkUploader'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Modal } from './Modal'
 
+export interface SaveRequest {
+  draft: PostDraft
+  /** Save even though someone else changed the post since it was opened. */
+  overwrite: boolean
+  /** Images picked for a new post, uploaded after it is created. */
+  files: File[]
+}
+
+/** Why the open post can no longer be saved normally. */
+export type EditorConflict = 'changed' | 'deleted' | null
+
+export interface ArtworkHandlers {
+  onUpload: (file: File) => Promise<unknown>
+  onRemove: (asset: ArtworkAsset) => Promise<void>
+  onReorder: (ordered: ArtworkAsset[]) => Promise<void>
+}
+
 interface PostEditorProps {
-  /** The saved post being edited; omitted when creating a new post. */
+  /** The saved post being edited (latest known copy); omitted when creating a new post. */
   post?: SocialPost
   initialDraft: PostDraft
-  onSave: (draft: PostDraft) => Promise<void>
+  onSave: (request: SaveRequest) => Promise<void>
   onClose: () => void
   onDuplicate?: (post: SocialPost) => void
   onDelete?: (post: SocialPost) => void
+  conflict?: EditorConflict
+  /** Discards local edits and reopens the editor on the latest saved version. */
+  onLoadLatest?: () => void
+  artwork?: ArtworkHandlers
 }
 
 const CREATIVE_WORDING_PLACEHOLDERS: Record<ContentFormat, string> = {
@@ -45,13 +68,35 @@ function validate(draft: PostDraft): Errors {
   return errors
 }
 
-export function PostEditor({ post, initialDraft, onSave, onClose, onDuplicate, onDelete }: PostEditorProps) {
+export function PostEditor({
+  post,
+  initialDraft,
+  onSave,
+  onClose,
+  onDuplicate,
+  onDelete,
+  conflict = null,
+  onLoadLatest,
+  artwork,
+}: PostEditorProps) {
   const [draft, setDraft] = useState<PostDraft>(initialDraft)
   const [errors, setErrors] = useState<Errors>({})
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([])
 
-  const isDirty = JSON.stringify(draft) !== JSON.stringify(initialDraft)
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(initialDraft) || stagedFiles.length > 0
+
+  // Warn before a refresh or tab close would throw away unsaved edits.
+  useEffect(() => {
+    if (!isDirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [isDirty])
 
   const set = <K extends keyof PostDraft>(key: K, value: PostDraft[K]) => {
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -70,23 +115,32 @@ export function PostEditor({ post, initialDraft, onSave, onClose, onDuplicate, o
     else onClose()
   }
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault()
+  const submit = async (overwrite: boolean) => {
     const found = validate(draft)
     setErrors(found)
     if (Object.keys(found).length > 0) return
     setSaving(true)
     try {
       await onSave({
-        ...draft,
-        title: draft.title.trim(),
-        designer: draft.designer.trim(),
-        artworkUrl: draft.artworkUrl.trim(),
-        publishedUrl: draft.publishedUrl.trim(),
+        draft: {
+          ...draft,
+          title: draft.title.trim(),
+          designer: draft.designer.trim(),
+          artworkUrl: draft.artworkUrl.trim(),
+          publishedUrl: draft.publishedUrl.trim(),
+        },
+        overwrite,
+        files: stagedFiles.map((staged) => staged.file),
       })
     } finally {
       setSaving(false)
     }
+  }
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault()
+    if (conflict) return
+    void submit(false)
   }
 
   return (
@@ -118,13 +172,51 @@ export function PostEditor({ post, initialDraft, onSave, onClose, onDuplicate, o
             <button type="button" className="button button-ghost" onClick={requestClose}>
               Cancel
             </button>
-            <button type="submit" form="post-editor-form" className="button button-primary" disabled={saving}>
+            <button
+              type="submit"
+              form="post-editor-form"
+              className="button button-primary"
+              disabled={saving || conflict !== null}
+              title={conflict ? 'Resolve the notice at the top of the editor first' : undefined}
+            >
               {saving ? 'Saving…' : post ? 'Save changes' : 'Create post'}
             </button>
           </>
         }
       >
         <form id="post-editor-form" className="editor-form" onSubmit={handleSubmit} noValidate>
+          {conflict === 'changed' && (
+            <div className="conflict-notice field-full" role="alert">
+              <p>
+                <strong>Another team member saved changes to this post</strong> after you opened it. Your edits
+                below have not been saved.
+              </p>
+              <div className="conflict-actions">
+                {onLoadLatest && (
+                  <button type="button" className="button button-ghost button-small" onClick={onLoadLatest}>
+                    Discard mine &amp; load their version
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="button button-primary button-small"
+                  disabled={saving}
+                  onClick={() => void submit(true)}
+                >
+                  {saving ? 'Saving…' : 'Overwrite with my version'}
+                </button>
+              </div>
+            </div>
+          )}
+          {conflict === 'deleted' && (
+            <div className="conflict-notice field-full" role="alert">
+              <p>
+                <strong>This post was deleted by another team member.</strong> It can no longer be saved. Copy any
+                text you want to keep before closing the editor.
+              </p>
+            </div>
+          )}
+
           <fieldset className="field field-full">
             <legend>Workflow status</legend>
             <div className="status-stepper" role="radiogroup" aria-label="Workflow status">
@@ -281,6 +373,30 @@ export function PostEditor({ post, initialDraft, onSave, onClose, onDuplicate, o
               placeholder="Canva / Drive link or file name"
             />
           </label>
+
+          <div className="field field-full content-section">
+            <span>Uploaded artwork</span>
+            <span className="field-description">
+              {draft.format === 'Carousel'
+                ? 'Upload every carousel slide; use the arrows to set the slide order.'
+                : 'Final artwork files for this post. Stored privately for the TAE team.'}
+            </span>
+            {post && artwork ? (
+              conflict === 'deleted' ? (
+                <p className="artwork-empty">Artwork is unavailable because the post was deleted.</p>
+              ) : (
+                <SavedArtwork
+                  format={draft.format}
+                  artwork={post.artwork}
+                  onUpload={artwork.onUpload}
+                  onRemove={artwork.onRemove}
+                  onReorder={artwork.onReorder}
+                />
+              )
+            ) : (
+              <StagedArtwork format={draft.format} files={stagedFiles} onChange={setStagedFiles} />
+            )}
+          </div>
 
           <label className="field field-full">
             <span>Published post URL</span>

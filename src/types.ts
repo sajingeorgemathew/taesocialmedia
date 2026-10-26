@@ -35,6 +35,24 @@ export const PROGRAM_SHORT: Record<Program, string> = {
   'General TAE Marketing': 'General',
 }
 
+/** An image uploaded to the private artwork bucket. */
+export interface ArtworkAsset {
+  id: string
+  postId: string
+  /** Object path inside the storage bucket. */
+  path: string
+  fileName: string
+  mimeType: string
+  sizeBytes: number
+  /** Order within the post; carousel slides are shown in this order. */
+  position: number
+  createdAt: string
+}
+
+export const ARTWORK_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'] as const
+export const ARTWORK_MAX_BYTES = 10 * 1024 * 1024
+export const ARTWORK_MAX_PER_POST = 20
+
 export interface SocialPost {
   id: string
   title: string
@@ -56,12 +74,16 @@ export interface SocialPost {
   notes: string
   artworkUrl: string
   publishedUrl: string
+  /** Uploaded artwork images, ordered by position. Managed outside the draft. */
+  artwork: ArtworkAsset[]
+  /** Incremented on every save; used to detect concurrent edits. */
+  version: number
   createdAt: string
   updatedAt: string
 }
 
 /** Editable fields of a post (everything the user controls). */
-export type PostDraft = Omit<SocialPost, 'id' | 'createdAt' | 'updatedAt'>
+export type PostDraft = Omit<SocialPost, 'id' | 'artwork' | 'version' | 'createdAt' | 'updatedAt'>
 
 export interface PostFilters {
   program: Program | 'All'

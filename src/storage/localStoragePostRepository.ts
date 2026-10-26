@@ -10,9 +10,10 @@ import {
 } from '../types'
 import { isValidDateKey, todayKey } from '../utils/date'
 import { createId } from '../utils/posts'
+import { ConflictError, NotFoundError } from './errors'
 import type { PostRepository } from './postRepository'
 
-const STORAGE_KEY = 'tae-social-media-manager:posts:v1'
+export const STORAGE_KEY = 'tae-social-media-manager:posts:v1'
 
 function oneOf<T extends string>(allowed: readonly T[], value: unknown, fallback: T): T {
   return allowed.includes(value as T) ? (value as T) : fallback
@@ -50,13 +51,35 @@ function normalizePost(raw: Record<string, unknown>): SocialPost {
     notes: text(raw.notes),
     artworkUrl: text(raw.artworkUrl),
     publishedUrl: text(raw.publishedUrl),
+    // Uploaded artwork only exists in Supabase.
+    artwork: [],
+    version: typeof raw.version === 'number' && raw.version > 0 ? raw.version : 1,
     createdAt: text(raw.createdAt) || now,
     updatedAt: text(raw.updatedAt) || now,
   }
 }
 
 function buildPost(draft: PostDraft, createdAt: string): SocialPost {
-  return { ...draft, id: createId(), createdAt, updatedAt: createdAt }
+  return { ...draft, id: createId(), artwork: [], version: 1, createdAt, updatedAt: createdAt }
+}
+
+/**
+ * Posts saved in this browser, for the one-time Supabase import. Unlike the
+ * repository it never seeds or rewrites anything: localStorage is left as is.
+ */
+export function readLocalPostsForImport(): { posts: SocialPost[]; error: string | null } {
+  const raw = localStorage.getItem(STORAGE_KEY)
+  if (raw === null) return { posts: [], error: null }
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (!Array.isArray(parsed)) throw new Error('Saved posts are not a list')
+    const posts = parsed
+      .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+      .map(normalizePost)
+    return { posts, error: null }
+  } catch {
+    return { posts: [], error: 'The posts saved in this browser could not be read.' }
+  }
 }
 
 function readAll(): SocialPost[] {
@@ -97,20 +120,29 @@ export const localStoragePostRepository: PostRepository = {
     return readAll()
   },
 
+  async get(id) {
+    return readAll().find((p) => p.id === id) ?? null
+  },
+
   async create(draft) {
     const post = buildPost(draft, new Date().toISOString())
     writeAll([...readAll(), post])
     return post
   },
 
-  async update(id, changes) {
+  async update(id, changes, options) {
     const posts = readAll()
     const index = posts.findIndex((p) => p.id === id)
-    if (index === -1) throw new Error('This post no longer exists.')
+    if (index === -1) throw new NotFoundError()
+    const current = posts[index]
+    if (options?.expectedVersion !== undefined && options.expectedVersion !== current.version) {
+      throw new ConflictError()
+    }
     const updated: SocialPost = {
-      ...posts[index],
+      ...current,
       ...changes,
       id,
+      version: current.version + 1,
       updatedAt: new Date().toISOString(),
     }
     posts[index] = updated
