@@ -5,6 +5,7 @@ interface UserMenuProps {
   member: TeamMember
   onRefresh: () => void
   onImport: () => void
+  onEmailReminders: () => void
   onSignOut: () => void
 }
 
@@ -14,7 +15,7 @@ function initials(member: TeamMember): string {
   return (parts.length > 1 ? parts[0][0] + parts[1][0] : source.slice(0, 2)).toUpperCase()
 }
 
-export function UserMenu({ member, onRefresh, onImport, onSignOut }: UserMenuProps) {
+export function UserMenu({ member, onRefresh, onImport, onEmailReminders, onSignOut }: UserMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
 
@@ -66,6 +67,11 @@ export function UserMenu({ member, onRefresh, onImport, onSignOut }: UserMenuPro
           {member.role === 'admin' && (
             <button type="button" role="menuitem" className="user-menu-item" onClick={choose(onImport)}>
               Import posts from this browser…
+            </button>
+          )}
+          {member.role === 'admin' && (
+            <button type="button" role="menuitem" className="user-menu-item" onClick={choose(onEmailReminders)}>
+              Email reminders
             </button>
           )}
           <button type="button" role="menuitem" className="user-menu-item" onClick={choose(onSignOut)}>

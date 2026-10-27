@@ -251,3 +251,210 @@ Do not implement:
 - No existing content is lost
 - npm run lint passes
 - npm run build passes
+
+
+# Feature 3 — Resend Email Reminders
+
+## Objective
+
+Build a configurable email reminder and progress reporting system for the TAE Social Media Manager.
+
+Administrators must manage everything through the application without editing code or manually changing Cron schedules.
+
+## Existing Infrastructure
+
+- React + TypeScript + Vite
+- Supabase Authentication
+- Supabase PostgreSQL
+- Supabase Storage
+- Existing team_members with admin/member roles
+- Existing social media posts and workflow statuses
+
+## Email Provider
+
+Provider: Resend
+Verified domain: mail.portal-torontoacademy.ca
+Sender: TAE Social Media Manager
+Sender email: notifications@mail.portal-torontoacademy.ca
+
+A dedicated Resend API key is already stored in this application's Supabase Edge Function Secrets.
+
+Read the configured secret name. Do not create, delete, or replace existing keys.
+
+Never expose Resend keys in browser code.
+
+## 1. Email Reminder Settings
+
+Create an Email Reminders page accessible only to administrators.
+
+Allow administrators to:
+
+- Add recipients by email address
+- Remove and disable recipients
+- Enable or pause scheduled reminders
+- Choose days of the week
+- Add multiple sending times per day
+- Remove or disable individual sending times
+- Send a test email
+- View email delivery history
+
+Default recipient:
+office@torontoacademy.ca
+
+Other recipients must be configurable through the UI.
+
+## 2. Multiple Daily Schedules
+
+Initial schedule:
+- Monday through Friday
+- 9:00 AM
+- 1:00 PM
+- 5:00 PM
+
+Timezone: America/Toronto
+
+All reminder times are editable.
+
+Use one periodic Supabase Cron checker that reads the active times from the database.
+
+Changing the schedule must not require redeploying code.
+
+Handle daylight saving time correctly.
+
+## 3. Progress Digest
+
+Generate progress reports from live Supabase data.
+
+Include summary counts for:
+- Planned
+- In Design
+- Ready for Review
+- Approved
+- Published
+- Overdue
+
+Include sections for:
+- Overdue unfinished posts
+- Posts scheduled today
+- Posts requiring design work
+- Posts awaiting approval
+- Upcoming scheduled posts
+- Recently published posts
+
+For each relevant post show:
+- Title
+- Program or campaign
+- Publishing date
+- Current status
+- Assigned designer
+- Next required action
+
+Do not include large artwork attachments.
+
+Provide a secure application link only when the deployed application URL is configured.
+
+## 4. Notification Options
+
+Support optional:
+- Assignment notifications
+- Ready for Review notifications
+- Approval notifications
+- Publishing deadline reminders
+
+Avoid sending an email after every ordinary post edit.
+
+Keep notification preferences separate from progress digest schedules.
+
+## 5. Database
+
+Create migrations for:
+- email_recipients
+- email_schedules
+- email_settings
+- email_delivery_logs
+
+Use existing team membership authorization.
+
+Enable Row Level Security.
+Only administrators may edit reminder settings and recipients.
+
+Never store API keys in application database tables.
+
+## 6. Sending Backend
+
+Use:
+- Supabase Edge Functions
+- Supabase Cron
+- Resend API
+
+Use separate authenticated paths for:
+- Admin-triggered test emails
+- Scheduled progress digest delivery
+
+Do not create a publicly accessible, unrestricted email sending endpoint.
+
+Use server-side credentials and validate authorization.
+
+## 7. Delivery Protection
+
+- Prevent duplicate scheduled emails
+- Use atomic database claims or equivalent protection
+- Use stable Resend idempotency keys
+- Record delivery attempts and results
+- Log Resend message IDs
+- Handle retryable failures
+- Respect provider sending limits
+- Avoid emailing inactive recipients
+
+## 8. User Interface
+
+Follow the existing TAE dashboard design.
+
+Add Email Reminders to the application navigation.
+
+Include:
+- Recipient management
+- Reminder schedules
+- Notification preferences
+- Send Test Email
+- Pause All Reminders
+- Email history
+
+Keep all settings usable on mobile.
+
+## 9. Safety and Compatibility
+
+Do not:
+- Modify other TAE applications
+- Reset existing Supabase tables
+- Modify previously applied migrations
+- Change Supabase authentication configuration
+- Expose secret keys
+- Remove existing calendar functionality
+
+## 10. Documentation
+
+Create RESEND_SETUP.md documenting:
+- API secret name
+- Required SQL migrations
+- Edge Function deployment
+- Cron configuration
+- Test email procedure
+- Delivery verification
+- Troubleshooting
+- Production deployment requirements
+
+## Acceptance Criteria
+
+- Office and designer addresses receive test emails
+- Multiple reminder times work
+- Times can be changed through the UI
+- Current post statuses appear in digests
+- Published posts are excluded from outstanding work
+- No duplicate scheduled emails
+- Pause prevents future scheduled sends
+- History displays sending outcomes
+- Admin authorization is enforced
+- Existing application still works
+- npm run lint passes
+- npm run build passes
