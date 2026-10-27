@@ -3,6 +3,7 @@ import { useAuth, useTeamMember } from './auth/authContext'
 import { CalendarView } from './components/CalendarView'
 import { ConfirmDialog } from './components/ConfirmDialog'
 import { DayAgenda } from './components/DayAgenda'
+import { EmailRemindersPage } from './components/email/EmailRemindersPage'
 import { FilterBar } from './components/FilterBar'
 import { ImportLocalPostsDialog } from './components/ImportLocalPostsDialog'
 import { NextUpCard } from './components/NextUpCard'
@@ -40,6 +41,9 @@ interface Toast {
 /** Refetch shared posts when the tab regains focus after this long. */
 const REFRESH_ON_FOCUS_AFTER_MS = 30_000
 
+/** Top-level pages. Email Reminders is shown to admins only. */
+type PageName = 'content' | 'email'
+
 const VIEWS: { id: ViewName; label: string }[] = [
   { id: 'calendar', label: 'Calendar' },
   { id: 'list', label: 'All Posts' },
@@ -73,6 +77,9 @@ function App() {
   const [pendingDelete, setPendingDelete] = useState<SocialPost | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [importOpen, setImportOpen] = useState(false)
+  const [page, setPage] = useState<PageName>('content')
+  const isAdmin = member.role === 'admin'
+  const activePage: PageName = isAdmin ? page : 'content'
 
   // Keep "today" accurate if the app is left open past midnight.
   useEffect(() => {
@@ -103,6 +110,10 @@ function App() {
 
   const stats = useMemo(() => computeStats(posts, today), [posts, today])
   const nextUp = useMemo(() => getNextUp(posts), [posts])
+  const designerNames = useMemo(
+    () => [...new Set(posts.map((p) => p.designer.trim().replace(/\s+/g, ' ')).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+    [posts],
+  )
   const filteredPosts = useMemo(() => filterPosts(posts, filters), [posts, filters])
   const selectedDayPosts = useMemo(
     () => sortByDate(filteredPosts.filter((p) => p.publishDate === selectedDate)),
@@ -171,6 +182,7 @@ function App() {
       }
       setEditor(null)
       // Bring the calendar to the post's date so the user can see it.
+      setPage('content')
       setSelectedDate(draft.publishDate)
       setMonth(startOfMonth(parseDateKey(draft.publishDate)))
     } catch (err) {
@@ -266,102 +278,131 @@ function App() {
               member={member}
               onRefresh={() => void handleRefresh()}
               onImport={() => setImportOpen(true)}
+              onEmailReminders={() => setPage('email')}
               onSignOut={handleSignOut}
             />
           </div>
         </div>
+        {isAdmin && (
+          <nav className="app-nav" aria-label="Pages">
+            <div className="app-nav-inner">
+              <button
+                type="button"
+                className={`app-nav-tab${activePage === 'content' ? ' is-active' : ''}`}
+                aria-current={activePage === 'content' ? 'page' : undefined}
+                onClick={() => setPage('content')}
+              >
+                Content Calendar
+              </button>
+              <button
+                type="button"
+                className={`app-nav-tab${activePage === 'email' ? ' is-active' : ''}`}
+                aria-current={activePage === 'email' ? 'page' : undefined}
+                onClick={() => setPage('email')}
+              >
+                Email Reminders
+              </button>
+            </div>
+          </nav>
+        )}
       </header>
 
-      <main className="app-main">
-        {error && (
-          <div className="alert alert-row" role="alert">
-            <span>Could not load posts: {error}</span>
-            <button type="button" className="button button-ghost button-small" onClick={() => void reload()} disabled={refreshing}>
-              {refreshing ? 'Retrying…' : 'Try again'}
-            </button>
-          </div>
-        )}
+      {activePage === 'email' ? (
+        <main className="app-main">
+          <EmailRemindersPage designerNames={designerNames} onNotify={showToast} />
+        </main>
+      ) : (
+        <main className="app-main">
+          {error && (
+            <div className="alert alert-row" role="alert">
+              <span>Could not load posts: {error}</span>
+              <button type="button" className="button button-ghost button-small" onClick={() => void reload()} disabled={refreshing}>
+                {refreshing ? 'Retrying…' : 'Try again'}
+              </button>
+            </div>
+          )}
 
-        <StatsGrid stats={stats} />
+          <StatsGrid stats={stats} />
 
-        <div className="layout">
-          <aside className="sidebar">
-            <NextUpCard
-              post={nextUp}
-              today={today}
-              onOpen={openPost}
-              onStatusChange={handleStatusChange}
-              onViewQueue={() => setView('queue')}
-            />
-            {view === 'calendar' && (
-              <DayAgenda
-                date={selectedDate}
-                today={today}
-                posts={selectedDayPosts}
-                onOpenPost={openPost}
-                onAddPost={openNewPost}
-              />
-            )}
-            <section className="panel legend">
-              <h2 className="panel-title">Workflow</h2>
-              <ol className="legend-list">
-                {STATUSES.map((status) => (
-                  <li key={status}>
-                    <StatusBadge status={status} />
-                    <span className="muted small">{stats.byStatus[status]}</span>
-                  </li>
-                ))}
-              </ol>
-            </section>
-          </aside>
-
-          <section className="content panel">
-            <nav className="view-tabs" aria-label="Views">
-              {VIEWS.map((v) => (
-                <button
-                  key={v.id}
-                  type="button"
-                  className={`view-tab${view === v.id ? ' is-active' : ''}`}
-                  aria-current={view === v.id ? 'page' : undefined}
-                  onClick={() => setView(v.id)}
-                >
-                  {v.label}
-                </button>
-              ))}
-            </nav>
-
-            <FilterBar filters={filters} onChange={setFilters} shown={filteredPosts.length} total={posts.length} />
-
-            {loading ? (
-              <p className="empty-state" role="status">
-                <span className="spinner" aria-hidden="true" /> Loading shared posts…
-              </p>
-            ) : view === 'calendar' ? (
-              <CalendarView
-                posts={filteredPosts}
-                today={today}
-                month={month}
-                selectedDate={selectedDate}
-                onMonthChange={setMonth}
-                onSelectDate={setSelectedDate}
-                onOpenPost={openPost}
-                onAddPost={openNewPost}
-              />
-            ) : view === 'list' ? (
-              <PostList
-                posts={filteredPosts}
+          <div className="layout">
+            <aside className="sidebar">
+              <NextUpCard
+                post={nextUp}
                 today={today}
                 onOpen={openPost}
                 onStatusChange={handleStatusChange}
-                onDuplicate={handleDuplicate}
-                onDelete={setPendingDelete}
+                onViewQueue={() => setView('queue')}
               />
-            ) : (
-              <WorkQueue posts={filteredPosts} today={today} onOpen={openPost} onStatusChange={handleStatusChange} />
-            )}
-          </section>
-        </div>
-      </main>
+              {view === 'calendar' && (
+                <DayAgenda
+                  date={selectedDate}
+                  today={today}
+                  posts={selectedDayPosts}
+                  onOpenPost={openPost}
+                  onAddPost={openNewPost}
+                />
+              )}
+              <section className="panel legend">
+                <h2 className="panel-title">Workflow</h2>
+                <ol className="legend-list">
+                  {STATUSES.map((status) => (
+                    <li key={status}>
+                      <StatusBadge status={status} />
+                      <span className="muted small">{stats.byStatus[status]}</span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </aside>
+
+            <section className="content panel">
+              <nav className="view-tabs" aria-label="Views">
+                {VIEWS.map((v) => (
+                  <button
+                    key={v.id}
+                    type="button"
+                    className={`view-tab${view === v.id ? ' is-active' : ''}`}
+                    aria-current={view === v.id ? 'page' : undefined}
+                    onClick={() => setView(v.id)}
+                  >
+                    {v.label}
+                  </button>
+                ))}
+              </nav>
+
+              <FilterBar filters={filters} onChange={setFilters} shown={filteredPosts.length} total={posts.length} />
+
+              {loading ? (
+                <p className="empty-state" role="status">
+                  <span className="spinner" aria-hidden="true" /> Loading shared posts…
+                </p>
+              ) : view === 'calendar' ? (
+                <CalendarView
+                  posts={filteredPosts}
+                  today={today}
+                  month={month}
+                  selectedDate={selectedDate}
+                  onMonthChange={setMonth}
+                  onSelectDate={setSelectedDate}
+                  onOpenPost={openPost}
+                  onAddPost={openNewPost}
+                />
+              ) : view === 'list' ? (
+                <PostList
+                  posts={filteredPosts}
+                  today={today}
+                  onOpen={openPost}
+                  onStatusChange={handleStatusChange}
+                  onDuplicate={handleDuplicate}
+                  onDelete={setPendingDelete}
+                />
+              ) : (
+                <WorkQueue posts={filteredPosts} today={today} onOpen={openPost} onStatusChange={handleStatusChange} />
+              )}
+            </section>
+          </div>
+        </main>
+      )}
 
       {editor && (
         <PostEditor
