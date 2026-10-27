@@ -125,7 +125,7 @@ export function getSeedDrafts(): PostDraft[] {
     creativeWording: '',
     designBrief: entry.designBrief,
     reelScript: '',
-    designer: '',
+    designerId: null,
     status: 'Planned',
     notes: entry.notes ?? '',
     artworkUrl: '',

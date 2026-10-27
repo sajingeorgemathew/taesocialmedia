@@ -137,12 +137,27 @@ export class Mailer {
     }
   }
 
+  /**
+   * A listed recipient must still be active. An address that is not on the
+   * recipient list (an assigned designer's account email) must belong to a
+   * listed active recipient or to an active team account.
+   */
   private async recipientIsActive(row: DeliveryLogRow): Promise<boolean> {
     let query = this.admin.from('email_recipients').select('id').eq('active', true)
     query = row.recipient_id ? query.eq('id', row.recipient_id) : query.eq('email', row.recipient_email)
     const { data, error } = await query.maybeSingle()
     if (error) throw new Error(`Could not check recipient: ${error.message}`)
-    return data !== null
+    if (data !== null || row.recipient_id) return data !== null
+
+    const { data: member, error: memberError } = await this.admin
+      .from('team_members')
+      .select('user_id')
+      .eq('active', true)
+      .ilike('email', row.recipient_email.replace(/[\\%_]/g, '\\$&'))
+      .limit(1)
+      .maybeSingle()
+    if (memberError) throw new Error(`Could not check team member: ${memberError.message}`)
+    return member !== null
   }
 
   private async send(row: DeliveryLogRow): Promise<DeliveryOutcome> {

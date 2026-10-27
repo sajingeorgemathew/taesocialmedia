@@ -6,17 +6,20 @@ import { DayAgenda } from './components/DayAgenda'
 import { EmailRemindersPage } from './components/email/EmailRemindersPage'
 import { FilterBar } from './components/FilterBar'
 import { ImportLocalPostsDialog } from './components/ImportLocalPostsDialog'
+import { MyAssignments } from './components/MyAssignments'
 import { NextUpCard } from './components/NextUpCard'
-import { PostEditor, type EditorConflict, type SaveRequest } from './components/PostEditor'
+import { PostEditor, type EditorConflict, type ReviewHandlers, type SaveRequest } from './components/PostEditor'
 import { PostList } from './components/PostList'
 import { StatsGrid } from './components/StatsGrid'
 import { StatusBadge } from './components/StatusBadge'
 import { UserMenu } from './components/UserMenu'
 import { WorkQueue } from './components/WorkQueue'
 import { usePosts } from './hooks/usePosts'
+import { useTeam } from './hooks/useTeam'
 import { ConflictError, errorMessage, NotFoundError } from './storage'
 import { EMPTY_FILTERS, STATUSES, type PostDraft, type PostFilters, type PostStatus, type SocialPost, type ViewName } from './types'
 import { parseDateKey, startOfMonth, todayKey } from './utils/date'
+import { statusOptions } from './utils/permissions'
 import {
   computeStats,
   createEmptyDraft,
@@ -44,7 +47,8 @@ const REFRESH_ON_FOCUS_AFTER_MS = 30_000
 /** Top-level pages. Email Reminders is shown to admins only. */
 type PageName = 'content' | 'email'
 
-const VIEWS: { id: ViewName; label: string }[] = [
+const VIEWS: { id: ViewName; label: string; designersOnly?: boolean }[] = [
+  { id: 'mine', label: 'My Assignments', designersOnly: true },
   { id: 'calendar', label: 'Calendar' },
   { id: 'list', label: 'All Posts' },
   { id: 'queue', label: 'Next Up / Work Queue' },
@@ -61,6 +65,7 @@ function App() {
     reload,
     createPost,
     updatePost,
+    requestChanges,
     deletePost,
     addArtwork,
     removeArtwork,
@@ -68,8 +73,10 @@ function App() {
   } = usePosts()
   const { signOut } = useAuth()
   const member = useTeamMember()
+  const { team, reload: reloadTeam } = useTeam()
+  const isAdmin = member.role === 'admin'
   const [today, setToday] = useState(todayKey)
-  const [view, setView] = useState<ViewName>('calendar')
+  const [view, setView] = useState<ViewName>(isAdmin ? 'calendar' : 'mine')
   const [filters, setFilters] = useState<PostFilters>(EMPTY_FILTERS)
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
   const [selectedDate, setSelectedDate] = useState(todayKey)
@@ -78,7 +85,6 @@ function App() {
   const [toast, setToast] = useState<Toast | null>(null)
   const [importOpen, setImportOpen] = useState(false)
   const [page, setPage] = useState<PageName>('content')
-  const isAdmin = member.role === 'admin'
   const activePage: PageName = isAdmin ? page : 'content'
 
   // Keep "today" accurate if the app is left open past midnight.
@@ -109,11 +115,18 @@ function App() {
   }, [lastSyncedAt, reload])
 
   const stats = useMemo(() => computeStats(posts, today), [posts, today])
-  const nextUp = useMemo(() => getNextUp(posts), [posts])
-  const designerNames = useMemo(
-    () => [...new Set(posts.map((p) => p.designer.trim().replace(/\s+/g, ' ')).filter(Boolean))].sort((a, b) => a.localeCompare(b)),
+  // Designers see their own next post; admins the whole team's.
+  const nextUp = useMemo(
+    () => getNextUp(isAdmin ? posts : posts.filter((p) => p.designerId === member.userId)),
+    [posts, isAdmin, member.userId],
+  )
+  // Unfinished posts still carrying a typed name with no designer account.
+  const unlinkedCount = useMemo(
+    () => posts.filter((p) => !p.designerId && p.designer && p.status !== 'Published').length,
     [posts],
   )
+  const views = VIEWS.filter((v) => !v.designersOnly || !isAdmin)
+  const statusOptionsFor = useCallback((post: SocialPost) => statusOptions(member, post), [member])
   const filteredPosts = useMemo(() => filterPosts(posts, filters), [posts, filters])
   const selectedDayPosts = useMemo(
     () => sortByDate(filteredPosts.filter((p) => p.publishDate === selectedDate)),
@@ -202,20 +215,48 @@ function App() {
     }
   }
 
-  const handleStatusChange = async (post: SocialPost, status: PostStatus) => {
-    try {
-      await updatePost(post.id, { status }, post.version)
-      showToast(status === 'Published' ? `“${post.title}” published — Next Up updated` : `Moved to ${status}`)
-    } catch (err) {
-      if (err instanceof ConflictError) {
-        showToast(`“${post.title}” was just changed by another team member. The latest version is shown — please try again.`, 'error')
-      } else if (err instanceof NotFoundError) {
-        showToast(`“${post.title}” was deleted by another team member.`, 'error')
-      } else {
-        reportError(err)
-      }
+  /** Shows a toast for a failed quick action on `post`. */
+  const reportPostError = (post: SocialPost, err: unknown) => {
+    if (err instanceof ConflictError) {
+      showToast(`“${post.title}” was just changed by another team member. The latest version is shown — please try again.`, 'error')
+    } else if (err instanceof NotFoundError) {
+      showToast(`“${post.title}” was deleted by another team member.`, 'error')
+    } else {
+      reportError(err)
     }
   }
+
+  const handleStatusChange = async (post: SocialPost, status: PostStatus): Promise<boolean> => {
+    try {
+      await updatePost(post.id, { status }, post.version)
+      showToast(
+        status === 'Published'
+          ? `“${post.title}” published — Next Up updated`
+          : status === 'Ready for Review' && !isAdmin
+            ? `“${post.title}” submitted for review`
+            : `Moved to ${status}`,
+      )
+      return true
+    } catch (err) {
+      reportPostError(post, err)
+      return false
+    }
+  }
+
+  const reviewHandlers = (post: SocialPost): ReviewHandlers => ({
+    onApprove: async () => {
+      if (await handleStatusChange(post, 'Approved')) setEditor(null)
+    },
+    onRequestChanges: async (note) => {
+      try {
+        await requestChanges(post.id, note, post.version)
+        showToast(`“${post.title}” sent back to ${post.designer || 'the designer'} with your feedback`)
+        setEditor(null)
+      } catch (err) {
+        reportPostError(post, err)
+      }
+    },
+  })
 
   const handleDuplicate = async (post: SocialPost) => {
     try {
@@ -241,7 +282,7 @@ function App() {
   }
 
   const handleRefresh = async () => {
-    await reload()
+    await Promise.all([reload(), reloadTeam()])
     showToast('Posts refreshed')
   }
 
@@ -271,9 +312,11 @@ function App() {
             <span className={`sync-status${saving || refreshing ? ' is-busy' : ''}`} role="status" aria-live="polite">
               {saving ? 'Saving…' : refreshing ? 'Refreshing…' : error ? 'Not synced' : 'All changes saved'}
             </span>
-            <button type="button" className="button button-accent" onClick={() => openNewPost()}>
-              + Add Post
-            </button>
+            {isAdmin && (
+              <button type="button" className="button button-accent" onClick={() => openNewPost()}>
+                + Add Post
+              </button>
+            )}
             <UserMenu
               member={member}
               onRefresh={() => void handleRefresh()}
@@ -309,7 +352,7 @@ function App() {
 
       {activePage === 'email' ? (
         <main className="app-main">
-          <EmailRemindersPage designerNames={designerNames} onNotify={showToast} />
+          <EmailRemindersPage onNotify={showToast} />
         </main>
       ) : (
         <main className="app-main">
@@ -318,6 +361,25 @@ function App() {
               <span>Could not load posts: {error}</span>
               <button type="button" className="button button-ghost button-small" onClick={() => void reload()} disabled={refreshing}>
                 {refreshing ? 'Retrying…' : 'Try again'}
+              </button>
+            </div>
+          )}
+          {isAdmin && unlinkedCount > 0 && (
+            <div className="alert alert-row alert-info" role="status">
+              <span>
+                {unlinkedCount} unfinished post{unlinkedCount === 1 ? ' has' : 's have'} a designer name that is not linked
+                to a designer account (shown as “not linked”). Open {unlinkedCount === 1 ? 'it' : 'them'} and choose the
+                designer.
+              </span>
+              <button
+                type="button"
+                className="button button-ghost button-small"
+                onClick={() => {
+                  setView('list')
+                  setFilters(EMPTY_FILTERS)
+                }}
+              >
+                Show all posts
               </button>
             </div>
           )}
@@ -331,7 +393,9 @@ function App() {
                 today={today}
                 onOpen={openPost}
                 onStatusChange={handleStatusChange}
-                onViewQueue={() => setView('queue')}
+                onViewQueue={() => setView(isAdmin ? 'queue' : 'mine')}
+                statusOptions={statusOptionsFor}
+                emptyMessage={isAdmin ? undefined : 'Nothing is assigned to you right now.'}
               />
               {view === 'calendar' && (
                 <DayAgenda
@@ -339,7 +403,7 @@ function App() {
                   today={today}
                   posts={selectedDayPosts}
                   onOpenPost={openPost}
-                  onAddPost={openNewPost}
+                  onAddPost={isAdmin ? openNewPost : undefined}
                 />
               )}
               <section className="panel legend">
@@ -357,7 +421,7 @@ function App() {
 
             <section className="content panel">
               <nav className="view-tabs" aria-label="Views">
-                {VIEWS.map((v) => (
+                {views.map((v) => (
                   <button
                     key={v.id}
                     type="button"
@@ -370,12 +434,22 @@ function App() {
                 ))}
               </nav>
 
-              <FilterBar filters={filters} onChange={setFilters} shown={filteredPosts.length} total={posts.length} />
+              {view !== 'mine' && (
+                <FilterBar filters={filters} onChange={setFilters} shown={filteredPosts.length} total={posts.length} />
+              )}
 
               {loading ? (
                 <p className="empty-state" role="status">
                   <span className="spinner" aria-hidden="true" /> Loading shared posts…
                 </p>
+              ) : view === 'mine' ? (
+                <MyAssignments
+                  posts={posts}
+                  userId={member.userId}
+                  today={today}
+                  onOpen={openPost}
+                  onStatusChange={(post, status) => void handleStatusChange(post, status)}
+                />
               ) : view === 'calendar' ? (
                 <CalendarView
                   posts={filteredPosts}
@@ -385,7 +459,7 @@ function App() {
                   onMonthChange={setMonth}
                   onSelectDate={setSelectedDate}
                   onOpenPost={openPost}
-                  onAddPost={openNewPost}
+                  onAddPost={isAdmin ? openNewPost : undefined}
                 />
               ) : view === 'list' ? (
                 <PostList
@@ -393,11 +467,18 @@ function App() {
                   today={today}
                   onOpen={openPost}
                   onStatusChange={handleStatusChange}
-                  onDuplicate={handleDuplicate}
-                  onDelete={setPendingDelete}
+                  statusOptions={statusOptionsFor}
+                  onDuplicate={isAdmin ? handleDuplicate : undefined}
+                  onDelete={isAdmin ? setPendingDelete : undefined}
                 />
               ) : (
-                <WorkQueue posts={filteredPosts} today={today} onOpen={openPost} onStatusChange={handleStatusChange} />
+                <WorkQueue
+                  posts={filteredPosts}
+                  today={today}
+                  onOpen={openPost}
+                  onStatusChange={handleStatusChange}
+                  statusOptions={statusOptionsFor}
+                />
               )}
             </section>
           </div>
@@ -412,10 +493,13 @@ function App() {
           initialDraft={editor.mode === 'create' ? editor.draft : toDraft(editor.snapshot)}
           onSave={handleSave}
           onClose={() => setEditor(null)}
-          onDuplicate={handleDuplicate}
-          onDelete={editorConflict === 'deleted' ? undefined : setPendingDelete}
+          onDuplicate={isAdmin ? handleDuplicate : undefined}
+          onDelete={isAdmin && editorConflict !== 'deleted' ? setPendingDelete : undefined}
           conflict={editorConflict}
           onLoadLatest={reloadLatestInEditor}
+          member={member}
+          team={team}
+          review={isAdmin && editingPost ? reviewHandlers(editingPost) : undefined}
           artwork={
             editor.mode === 'edit'
               ? {

@@ -2,7 +2,7 @@ import type { Session } from '@supabase/supabase-js'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getSupabase } from '../lib/supabase'
 import { toAppError } from '../storage/supabasePostRepository'
-import { AuthContext, type AuthContextValue, type AuthState, type TeamMember } from './authContext'
+import { AuthContext, type AuthContextValue, type AuthState, type TeamMember, type TeamRole } from './authContext'
 
 type AccessCheck =
   | { userId: string; status: 'checking' }
@@ -14,7 +14,8 @@ interface MemberRow {
   user_id: string
   email: string
   display_name: string
-  role: 'admin' | 'member'
+  role: TeamRole
+  active: boolean
 }
 
 function signInErrorMessage(message: string): string {
@@ -59,13 +60,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
     getSupabase()
       .from('team_members')
-      .select('user_id, email, display_name, role')
+      .select('user_id, email, display_name, role, active')
       .eq('user_id', userId)
       .maybeSingle<MemberRow>()
       .then(({ data, error }) => {
         if (!active) return
         if (error) setAccess({ userId, status: 'error', message: toAppError(error).message })
-        else if (!data) setAccess({ userId, status: 'unauthorized' })
+        else if (!data || data.active === false) setAccess({ userId, status: 'unauthorized' })
         else
           setAccess({
             userId,

@@ -1,4 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import type { TeamMember } from '../auth/authContext'
+import { accountLabel, type TeamAccount } from '../team/teamRepository'
 import {
   FORMATS,
   PLATFORMS,
@@ -11,7 +13,8 @@ import {
   type SocialPost,
 } from '../types'
 import { isValidDateKey } from '../utils/date'
-import { statusSlug } from '../utils/posts'
+import { canEditPost, canReview, isAdmin, statusOptions } from '../utils/permissions'
+import { designerLabel, statusSlug } from '../utils/posts'
 import { SavedArtwork, StagedArtwork, type StagedFile } from './ArtworkUploader'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Modal } from './Modal'
@@ -45,6 +48,17 @@ interface PostEditorProps {
   /** Discards local edits and reopens the editor on the latest saved version. */
   onLoadLatest?: () => void
   artwork?: ArtworkHandlers
+  /** The signed-in person; decides what can be edited (the database enforces the same rules). */
+  member: TeamMember
+  /** All team accounts, for the designer dropdown and names. */
+  team: TeamAccount[]
+  /** Admins: approve or send back a post waiting for review. */
+  review?: ReviewHandlers
+}
+
+export interface ReviewHandlers {
+  onApprove: () => Promise<void>
+  onRequestChanges: (note: string) => Promise<void>
 }
 
 const CREATIVE_WORDING_PLACEHOLDERS: Record<ContentFormat, string> = {
@@ -68,6 +82,83 @@ function validate(draft: PostDraft): Errors {
   return errors
 }
 
+/** Approve / Request changes, for admins on posts waiting for review. */
+function ReviewPanel({ post, disabled, review }: { post: SocialPost; disabled: boolean; review: ReviewHandlers }) {
+  const [note, setNote] = useState('')
+  const [requesting, setRequesting] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [noteError, setNoteError] = useState<string | null>(null)
+
+  const run = async (action: () => Promise<void>) => {
+    setBusy(true)
+    try {
+      await action()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sendBack = () => {
+    if (!note.trim()) {
+      setNoteError('Describe what needs to change so the designer can act on it.')
+      return
+    }
+    void run(() => review.onRequestChanges(note.trim()))
+  }
+
+  return (
+    <div className="review-panel field-full">
+      <div className="review-panel-heading">
+        <strong>{post.status === 'Ready for Review' ? 'Review this post' : 'Approved — send back if needed'}</strong>
+        {disabled && <span className="muted small">Save or discard your edits first.</span>}
+      </div>
+      {requesting ? (
+        <>
+          <label className="field">
+            <span>What needs to change?</span>
+            <textarea
+              rows={3}
+              value={note}
+              maxLength={2000}
+              onChange={(e) => {
+                setNote(e.target.value)
+                setNoteError(null)
+              }}
+              placeholder="e.g. Use the new intake date and a brighter photo."
+              aria-invalid={Boolean(noteError)}
+            />
+            {noteError && <span className="field-error">{noteError}</span>}
+          </label>
+          <div className="review-actions">
+            <button type="button" className="button button-ghost button-small" onClick={() => setRequesting(false)} disabled={busy}>
+              Cancel
+            </button>
+            <button type="button" className="button button-primary button-small" onClick={sendBack} disabled={busy || disabled}>
+              {busy ? 'Sending…' : 'Send back to designer'}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="review-actions">
+          <button type="button" className="button button-secondary button-small" onClick={() => setRequesting(true)} disabled={busy || disabled}>
+            Request changes
+          </button>
+          {post.status === 'Ready for Review' && (
+            <button
+              type="button"
+              className="button button-primary button-small"
+              onClick={() => void run(review.onApprove)}
+              disabled={busy || disabled}
+            >
+              {busy ? 'Approving…' : 'Approve'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function PostEditor({
   post,
   initialDraft,
@@ -78,8 +169,20 @@ export function PostEditor({
   conflict = null,
   onLoadLatest,
   artwork,
+  member,
+  team,
+  review,
 }: PostEditorProps) {
   const [draft, setDraft] = useState<PostDraft>(initialDraft)
+  const admin = isAdmin(member)
+  // Designers: Approved and Published posts are read-only until an admin reopens them.
+  const readOnly = post ? !canEditPost(member, post) : false
+  // Scheduling fields are managed by admins.
+  const locked = readOnly || !admin
+  const allowedStatuses = post ? statusOptions(member, post) : STATUSES
+  const designerChoices = team.filter(
+    (a) => (a.role === 'designer' && a.active) || a.userId === draft.designerId,
+  )
   const [errors, setErrors] = useState<Errors>({})
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -125,7 +228,6 @@ export function PostEditor({
         draft: {
           ...draft,
           title: draft.title.trim(),
-          designer: draft.designer.trim(),
           artworkUrl: draft.artworkUrl.trim(),
           publishedUrl: draft.publishedUrl.trim(),
         },
@@ -139,7 +241,7 @@ export function PostEditor({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
-    if (conflict) return
+    if (conflict || readOnly) return
     void submit(false)
   }
 
@@ -170,17 +272,19 @@ export function PostEditor({
               </div>
             )}
             <button type="button" className="button button-ghost" onClick={requestClose}>
-              Cancel
+              {readOnly ? 'Close' : 'Cancel'}
             </button>
-            <button
-              type="submit"
-              form="post-editor-form"
-              className="button button-primary"
-              disabled={saving || conflict !== null}
-              title={conflict ? 'Resolve the notice at the top of the editor first' : undefined}
-            >
-              {saving ? 'Saving…' : post ? 'Save changes' : 'Create post'}
-            </button>
+            {!readOnly && (
+              <button
+                type="submit"
+                form="post-editor-form"
+                className="button button-primary"
+                disabled={saving || conflict !== null}
+                title={conflict ? 'Resolve the notice at the top of the editor first' : undefined}
+              >
+                {saving ? 'Saving…' : post ? 'Save changes' : 'Create post'}
+              </button>
+            )}
           </>
         }
       >
@@ -217,6 +321,28 @@ export function PostEditor({
             </div>
           )}
 
+          {post && readOnly && (
+            <div className="readonly-notice field-full" role="note">
+              <strong>Read-only — {post.status}.</strong> Only an administrator can change this post. To make further
+              changes, ask an administrator to reopen it (move it back to In Design).
+            </div>
+          )}
+          {post?.changesRequestedAt && (
+            <div className="review-notice field-full" role="status">
+              <strong>Changes requested</strong>
+              {post.reviewNote && <p>{post.reviewNote}</p>}
+            </div>
+          )}
+          {post && admin && !post.changesRequestedAt && post.reviewNote && post.status === 'Ready for Review' && (
+            <div className="review-notice is-history field-full">
+              <strong>Previous feedback</strong>
+              <p>{post.reviewNote}</p>
+            </div>
+          )}
+          {post && review && canReview(member, post) && (
+            <ReviewPanel post={post} disabled={isDirty || conflict !== null} review={review} />
+          )}
+
           <fieldset className="field field-full">
             <legend>Workflow status</legend>
             <div className="status-stepper" role="radiogroup" aria-label="Workflow status">
@@ -226,6 +352,7 @@ export function PostEditor({
                   type="button"
                   role="radio"
                   aria-checked={draft.status === status}
+                  disabled={readOnly || !allowedStatuses.includes(status)}
                   className={`step status-${statusSlug(status)}${draft.status === status ? ' is-active' : ''}${
                     STATUSES.indexOf(draft.status) > index ? ' is-complete' : ''
                   }`}
@@ -246,6 +373,7 @@ export function PostEditor({
               onChange={(e) => set('title', e.target.value)}
               placeholder="e.g. November 16 Intake Announcement"
               aria-invalid={Boolean(errors.title)}
+              readOnly={locked}
               data-autofocus
             />
             {errors.title && <span className="field-error">{errors.title}</span>}
@@ -258,13 +386,18 @@ export function PostEditor({
               value={draft.publishDate}
               onChange={(e) => set('publishDate', e.target.value)}
               aria-invalid={Boolean(errors.publishDate)}
+              readOnly={locked}
             />
             {errors.publishDate && <span className="field-error">{errors.publishDate}</span>}
           </label>
 
           <label className="field">
             <span>Program or campaign</span>
-            <select value={draft.program} onChange={(e) => set('program', e.target.value as PostDraft['program'])}>
+            <select
+              value={draft.program}
+              disabled={locked}
+              onChange={(e) => set('program', e.target.value as PostDraft['program'])}
+            >
               {PROGRAMS.map((p) => (
                 <option key={p} value={p}>
                   {p}
@@ -281,6 +414,7 @@ export function PostEditor({
                   <input
                     type="checkbox"
                     checked={draft.platforms.includes(platform)}
+                    disabled={locked}
                     onChange={() => togglePlatform(platform)}
                   />
                   {platform}
@@ -292,7 +426,11 @@ export function PostEditor({
 
           <label className="field">
             <span>Content format</span>
-            <select value={draft.format} onChange={(e) => set('format', e.target.value as PostDraft['format'])}>
+            <select
+              value={draft.format}
+              disabled={locked}
+              onChange={(e) => set('format', e.target.value as PostDraft['format'])}
+            >
               {FORMATS.map((f) => (
                 <option key={f} value={f}>
                   {f}
@@ -307,6 +445,7 @@ export function PostEditor({
             <textarea
               rows={4}
               value={draft.caption}
+              readOnly={readOnly}
               onChange={(e) => set('caption', e.target.value)}
               placeholder="Write the post caption, hashtags and call to action."
             />
@@ -321,6 +460,7 @@ export function PostEditor({
             <textarea
               rows={draft.format === 'Carousel' ? 6 : 4}
               value={draft.creativeWording}
+              readOnly={readOnly}
               onChange={(e) => set('creativeWording', e.target.value)}
               placeholder={CREATIVE_WORDING_PLACEHOLDERS[draft.format]}
             />
@@ -334,6 +474,7 @@ export function PostEditor({
             <textarea
               rows={3}
               value={draft.designBrief}
+              readOnly={readOnly}
               onChange={(e) => set('designBrief', e.target.value)}
               placeholder="What should the designer create? Sizes, layout, imagery, colours and branding."
             />
@@ -346,6 +487,7 @@ export function PostEditor({
               <textarea
                 rows={5}
                 value={draft.reelScript}
+                readOnly={readOnly}
                 onChange={(e) => set('reelScript', e.target.value)}
                 placeholder={
                   'Scene 1 (0–3s): Hook — on-screen text…\nScene 2 (3–8s): B-roll of… / Voiceover: …\nScene 3: Closing CTA — …'
@@ -354,21 +496,43 @@ export function PostEditor({
             </label>
           )}
 
-          <label className="field">
-            <span>Assigned designer</span>
-            <input
-              type="text"
-              value={draft.designer}
-              onChange={(e) => set('designer', e.target.value)}
-              placeholder="Unassigned"
-            />
-          </label>
+          {admin ? (
+            <label className="field">
+              <span>Primary designer</span>
+              <select value={draft.designerId ?? ''} onChange={(e) => set('designerId', e.target.value || null)}>
+                <option value="">Unassigned</option>
+                {designerChoices.map((a) => (
+                  <option key={a.userId} value={a.userId}>
+                    {accountLabel(a)}
+                    {a.active ? '' : ' (disabled)'}
+                  </option>
+                ))}
+              </select>
+              {post && !post.designerId && post.designer && !draft.designerId && (
+                <span className="field-hint">
+                  Previously typed name: “{post.designer}”. Choose the matching designer account.
+                </span>
+              )}
+              {designerChoices.length === 0 && (
+                <span className="field-hint">No designer accounts yet. Add them in Supabase (see SUPABASE_SETUP.md).</span>
+              )}
+            </label>
+          ) : (
+            <div className="field">
+              <span>Primary designer</span>
+              <p className="field-static">
+                {post ? designerLabel(post) : 'Unassigned'}
+                {!readOnly && <span className="muted small"> · any designer can contribute; only the office assigns</span>}
+              </p>
+            </div>
+          )}
 
           <label className="field">
             <span>Artwork URL or reference</span>
             <input
               type="text"
               value={draft.artworkUrl}
+              readOnly={readOnly}
               onChange={(e) => set('artworkUrl', e.target.value)}
               placeholder="Canva / Drive link or file name"
             />
@@ -391,6 +555,7 @@ export function PostEditor({
                   onUpload={artwork.onUpload}
                   onRemove={artwork.onRemove}
                   onReorder={artwork.onReorder}
+                  readOnly={readOnly}
                 />
               )
             ) : (
@@ -403,6 +568,7 @@ export function PostEditor({
             <input
               type="url"
               value={draft.publishedUrl}
+              readOnly={locked}
               onChange={(e) => set('publishedUrl', e.target.value)}
               placeholder={draft.status === 'Published' ? 'Paste the live post link' : 'Add once the post is live'}
               aria-invalid={Boolean(errors.publishedUrl)}
@@ -415,6 +581,7 @@ export function PostEditor({
             <textarea
               rows={3}
               value={draft.notes}
+              readOnly={readOnly}
               onChange={(e) => set('notes', e.target.value)}
               placeholder="Approvals, reminders, things to verify before publishing."
             />

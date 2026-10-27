@@ -121,6 +121,22 @@ export function usePosts() {
     [track, replacePost, refreshPost, dropPost],
   )
 
+  /** Admin: sends a post back to In Design with feedback for the designer. */
+  const requestChanges = useCallback(
+    async (id: string, note: string, expectedVersion?: number) => {
+      try {
+        const updated = await track(() => postRepository.requestChanges(id, note, { expectedVersion }))
+        replacePost(updated)
+        return updated
+      } catch (err) {
+        if (err instanceof ConflictError) await refreshPost(id).catch(() => undefined)
+        if (err instanceof NotFoundError) dropPost(id)
+        throw err
+      }
+    },
+    [track, replacePost, refreshPost, dropPost],
+  )
+
   const deletePost = useCallback(
     async (id: string) => {
       await track(() => postRepository.remove(id))
@@ -180,6 +196,7 @@ export function usePosts() {
     refreshPost,
     createPost,
     updatePost,
+    requestChanges,
     deletePost,
     addArtwork,
     removeArtwork,

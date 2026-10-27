@@ -16,6 +16,7 @@ import { ConfigError, cronSecret, getResendApiKey } from '../_shared/config.ts'
 import {
   createAdminClient,
   loadActiveRecipients,
+  loadActiveTeamMembers,
   loadPosts,
   loadSettings,
   type AdminClient,
@@ -96,8 +97,10 @@ async function queueNotifications(ctx: Context) {
     assignment: ctx.settings.notify_assignment,
     ready_for_review: ctx.settings.notify_ready_for_review,
     approved: ctx.settings.notify_approved,
+    changes_requested: ctx.settings.notify_changes_requested,
   }
-  const postsById = new Map((await ctx.getPosts()).map((p) => [p.id, p]))
+  const [posts, members] = await Promise.all([ctx.getPosts(), loadActiveTeamMembers(ctx.admin)])
+  const postsById = new Map(posts.map((p) => [p.id, p]))
 
   // Keep the latest event per post and type, and only those still true.
   const latest = new Map<string, NotificationItem>()
@@ -119,10 +122,10 @@ async function queueNotifications(ctx: Context) {
   )
   const today = localDateKey(ctx.now)
   const appUrl = safeAppUrl(ctx.settings.app_url)
-  const emails: OutgoingEmail[] = routeNotifications(items, ctx.recipients).map(({ recipient, items: mine }) => ({
+  const emails: OutgoingEmail[] = routeNotifications(items, ctx.recipients, members).map(({ recipient, items: mine }) => ({
     kind: 'notification',
     dedupeKey: `notification:${eventKey}:${recipient.email}`,
-    recipient: { id: recipient.id, email: recipient.email },
+    recipient,
     expiresAt: new Date(ctx.now.getTime() + 12 * HOUR),
     ...buildNotificationEmail(mine, today, appUrl),
   }))

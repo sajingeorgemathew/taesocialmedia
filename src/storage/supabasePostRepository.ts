@@ -18,9 +18,12 @@ interface PostRow {
   design_brief: string
   reel_script: string
   designer: string
+  designer_id: string | null
   notes: string
   artwork_url: string
   published_url: string
+  review_note: string
+  changes_requested_at: string | null
   version: number
   created_at: string
   updated_at: string
@@ -50,7 +53,7 @@ const COLUMNS: Record<keyof PostDraft, keyof PostRow> = {
   creativeWording: 'creative_wording',
   designBrief: 'design_brief',
   reelScript: 'reel_script',
-  designer: 'designer',
+  designerId: 'designer_id',
   status: 'status',
   notes: 'notes',
   artworkUrl: 'artwork_url',
@@ -84,11 +87,14 @@ function fromRow(row: PostRow): SocialPost {
     creativeWording: row.creative_wording,
     designBrief: row.design_brief,
     reelScript: row.reel_script,
+    designerId: row.designer_id,
     designer: row.designer,
     status: row.status,
     notes: row.notes,
     artworkUrl: row.artwork_url,
     publishedUrl: row.published_url,
+    reviewNote: row.review_note ?? '',
+    changesRequestedAt: row.changes_requested_at ?? null,
     artwork: (row.post_assets ?? [])
       .map(assetFromRow)
       .sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)),
@@ -112,7 +118,7 @@ export function toAppError(error: PostgrestError | Error | { message: string; co
   const code = 'code' in error ? error.code : undefined
   const message = error.message ?? ''
   if (code === '42501' || /row-level security/i.test(message)) {
-    return new Error('You do not have permission to do this. Ask an admin to confirm your team access.')
+    return new Error('You do not have permission to do this. Ask an administrator if you need access.')
   }
   if (code === 'PGRST301' || code === 'PGRST303' || /jwt expired/i.test(message)) {
     return new Error('Your session has expired. Please sign out and sign in again.')
@@ -187,5 +193,20 @@ export const supabasePostRepository: PostRepository = {
     const { error } = await db.from('posts').delete().eq('id', id)
     if (error) throw toAppError(error)
     await removeStoredFiles((assets ?? []).map((a: { storage_path: string }) => a.storage_path))
+  },
+
+  async requestChanges(id, note, options) {
+    const { data, error } = await getSupabase().rpc('request_post_changes', {
+      p_post_id: id,
+      p_note: note,
+      p_expected_version: options?.expectedVersion ?? null,
+    })
+    if (error) throw toAppError(error)
+    if (data === 'conflict') throw new ConflictError()
+    if (data === 'not_found') throw new NotFoundError()
+    if (data === 'invalid_status') throw new Error('Changes can only be requested on posts that are Ready for Review or Approved.')
+    const post = await getPost(id)
+    if (!post) throw new NotFoundError()
+    return post
   },
 }

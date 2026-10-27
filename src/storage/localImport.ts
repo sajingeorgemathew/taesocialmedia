@@ -85,6 +85,8 @@ export async function importLocalPosts(posts: SocialPost[]): Promise<number> {
   for (let i = 0; i < posts.length; i += INSERT_CHUNK) {
     const rows = posts.slice(i, i + INSERT_CHUNK).map((post) => ({
       ...toRow({ ...toDraft(post), title: post.title.trim() || 'Untitled post' }),
+      // Kept as a legacy name; an admin links it to a designer account later.
+      designer: post.designer,
       legacy_id: post.id,
       created_at: post.createdAt,
       updated_at: post.updatedAt,

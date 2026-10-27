@@ -20,6 +20,7 @@ interface SettingsRow {
   notify_ready_for_review: boolean
   notify_approved: boolean
   notify_deadline: boolean
+  notify_changes_requested: boolean
   deadline_days_ahead: number
   deadline_reminder_time: string
   updated_at: string
@@ -79,6 +80,8 @@ function settingsFromRow(row: SettingsRow): EmailSettings {
     notifyReadyForReview: row.notify_ready_for_review,
     notifyApproved: row.notify_approved,
     notifyDeadline: row.notify_deadline,
+    // Undefined until the Feature 4 migration has run.
+    notifyChangesRequested: row.notify_changes_requested ?? false,
     deadlineDaysAhead: row.deadline_days_ahead,
     deadlineReminderTime: hhmm(row.deadline_reminder_time),
     updatedAt: row.updated_at,
@@ -94,6 +97,7 @@ const SETTINGS_COLUMNS: Record<Exclude<keyof EmailSettings, 'updatedAt'>, keyof 
   notifyReadyForReview: 'notify_ready_for_review',
   notifyApproved: 'notify_approved',
   notifyDeadline: 'notify_deadline',
+  notifyChangesRequested: 'notify_changes_requested',
   deadlineDaysAhead: 'deadline_days_ahead',
   deadlineReminderTime: 'deadline_reminder_time',
 }

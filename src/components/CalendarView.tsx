@@ -14,7 +14,8 @@ interface CalendarViewProps {
   onMonthChange: (month: Date) => void
   onSelectDate: (date: string) => void
   onOpenPost: (post: SocialPost) => void
-  onAddPost: (date: string) => void
+  /** Omitted for people who cannot create posts. */
+  onAddPost?: (date: string) => void
 }
 
 export function CalendarView({
@@ -117,18 +118,20 @@ export function CalendarView({
                     >
                       {date.getDate()}
                     </button>
-                    <button
-                      type="button"
-                      className="day-add"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onAddPost(dateKey)
-                      }}
-                      aria-label={`Add post on ${formatLongDate(dateKey)}`}
-                      title="Add post on this date"
-                    >
-                      +
-                    </button>
+                    {onAddPost && (
+                      <button
+                        type="button"
+                        className="day-add"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onAddPost(dateKey)
+                        }}
+                        aria-label={`Add post on ${formatLongDate(dateKey)}`}
+                        title="Add post on this date"
+                      >
+                        +
+                      </button>
+                    )}
                   </div>
                   <div className="calendar-day-posts">
                     {dayPosts.slice(0, MAX_CHIPS).map((post) => (

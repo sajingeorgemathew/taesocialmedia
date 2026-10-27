@@ -13,15 +13,13 @@ import { TestEmailPanel } from './TestEmailPanel'
 export type Notify = (message: string, tone?: 'info' | 'error') => void
 
 interface EmailRemindersPageProps {
-  /** Designer names used on posts, offered when linking recipients. */
-  designerNames: string[]
   onNotify: Notify
 }
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; config: EmailConfig }
 
 /** Admin-only settings for scheduled digests, notifications and test emails. */
-export function EmailRemindersPage({ designerNames, onNotify }: EmailRemindersPageProps) {
+export function EmailRemindersPage({ onNotify }: EmailRemindersPageProps) {
   const [state, setState] = useState<LoadState>({ status: 'loading' })
   const [pausing, setPausing] = useState(false)
   const [confirmPause, setConfirmPause] = useState(false)
@@ -156,7 +154,7 @@ export function EmailRemindersPage({ designerNames, onNotify }: EmailRemindersPa
 
       <div className="email-grid">
         <div className="email-column">
-          <RecipientsPanel recipients={recipients} designerNames={designerNames} onChange={setRecipients} onNotify={onNotify} />
+          <RecipientsPanel recipients={recipients} onChange={setRecipients} onNotify={onNotify} />
           <SchedulePanel
             settings={settings}
             schedules={schedules}

@@ -24,7 +24,9 @@ export function nextAction(post: PostRow): string {
     case 'Planned':
       return post.designer.trim() ? `Start the design (${post.designer.trim()})` : 'Assign a designer and start the design'
     case 'In Design':
-      return 'Finish the artwork and submit it for review'
+      return post.changes_requested_at
+        ? 'Make the requested changes and resubmit for review'
+        : 'Finish the artwork and submit it for review'
     case 'Ready for Review':
       return 'Review the post and approve it'
     case 'Approved':
@@ -232,15 +234,36 @@ const EVENT_LABEL: Record<NotificationEventRow['event_type'], string> = {
   assignment: 'Designer assigned',
   ready_for_review: 'Ready for review',
   approved: 'Approved',
+  changes_requested: 'Changes requested',
 }
 
-/** Drops events that are no longer true (e.g. moved back, reassigned, published). */
+const sameInstant = (a: unknown, b: string | null) =>
+  typeof a === 'string' && b !== null && Date.parse(a) === Date.parse(b)
+
+/** Drops events that are no longer true (e.g. moved back, reassigned, published, resubmitted). */
 export function stillRelevant(item: NotificationItem): boolean {
   const { event, post } = item
-  if (event.event_type === 'ready_for_review') return post.status === 'Ready for Review'
-  if (event.event_type === 'approved') return post.status === 'Approved'
-  const designer = typeof event.details.designer === 'string' ? event.details.designer.trim() : ''
-  return post.status !== 'Published' && designer !== '' && post.designer.trim() === designer
+  switch (event.event_type) {
+    case 'ready_for_review':
+      return post.status === 'Ready for Review'
+    case 'approved':
+      return post.status === 'Approved'
+    case 'changes_requested':
+      return post.status === 'In Design' && sameInstant(event.details.changes_requested_at, post.changes_requested_at)
+    case 'assignment': {
+      if (post.status === 'Published') return false
+      if ('designer_id' in event.details) {
+        return typeof event.details.designer_id === 'string' && post.designer_id === event.details.designer_id
+      }
+      // Events queued before designer accounts existed carry only the typed name.
+      const designer = typeof event.details.designer === 'string' ? event.details.designer.trim() : ''
+      return designer !== '' && post.designer.trim() === designer
+    }
+  }
+}
+
+function reviewNoteRow(note: string): string {
+  return `<tr><td style="padding:8px 24px 0;"><div style="padding:10px 14px;border-radius:6px;background:${COLORS.cream};border:1px solid ${COLORS.border};font-size:13px;color:${COLORS.text};white-space:pre-wrap;"><strong style="color:${COLORS.navy800};">Requested changes:</strong> ${escapeHtml(note)}</div></td></tr>`
 }
 
 export function buildNotificationEmail(items: NotificationItem[], today: string, appUrl: string | null): RenderedEmail {
@@ -251,15 +274,22 @@ export function buildNotificationEmail(items: NotificationItem[], today: string,
       event.event_type === 'assignment' ? `${EVENT_LABEL.assignment}: ${post.designer.trim()}` : EVENT_LABEL[event.event_type]
     rows += `<tr><td style="padding:14px 24px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${COLORS.navy800};">${escapeHtml(label)}</div></td></tr>`
     rows += postCard(post, today)
-    text.push(label.toUpperCase(), postLine(post, today), '')
+    text.push(label.toUpperCase(), postLine(post, today))
+    if (event.event_type === 'changes_requested' && post.review_note.trim()) {
+      rows += reviewNoteRow(post.review_note.trim())
+      text.push(`  Requested changes: ${post.review_note.trim()}`)
+    }
+    text.push('')
   }
   const counts = {
     assignment: items.filter((i) => i.event.event_type === 'assignment').length,
     ready: items.filter((i) => i.event.event_type === 'ready_for_review').length,
     approved: items.filter((i) => i.event.event_type === 'approved').length,
+    changes: items.filter((i) => i.event.event_type === 'changes_requested').length,
   }
   const parts = [
     counts.ready ? `${counts.ready} ready for review` : '',
+    counts.changes ? `${counts.changes} need${counts.changes === 1 ? 's' : ''} changes` : '',
     counts.approved ? `${counts.approved} approved` : '',
     counts.assignment ? `${counts.assignment} assigned` : '',
   ].filter(Boolean)

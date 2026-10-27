@@ -1,12 +1,5 @@
-import { useId, useMemo, useState, type FormEvent } from 'react'
-import {
-  addRecipient,
-  deleteRecipient,
-  isValidEmail,
-  normalizeDesignerName,
-  normalizeEmail,
-  updateRecipient,
-} from '../../email/emailRepository'
+import { useState, type FormEvent } from 'react'
+import { addRecipient, deleteRecipient, isValidEmail, normalizeEmail, updateRecipient } from '../../email/emailRepository'
 import type { EmailRecipient } from '../../email/types'
 import { errorMessage } from '../../storage'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -14,39 +7,32 @@ import type { Notify } from './EmailRemindersPage'
 
 interface RecipientsPanelProps {
   recipients: EmailRecipient[]
-  /** Designer names currently used on posts, for linking suggestions. */
-  designerNames: string[]
   onChange: (update: (list: EmailRecipient[]) => EmailRecipient[]) => void
   onNotify: Notify
 }
 
 type RecipientPatch = Partial<
-  Pick<EmailRecipient, 'name' | 'designerName' | 'active' | 'receivesDigest' | 'receivesNotifications' | 'receivesAssignments'>
+  Pick<EmailRecipient, 'name' | 'active' | 'receivesDigest' | 'receivesNotifications' | 'receivesAssignments'>
 >
-
-const designerKey = (name: string) => normalizeDesignerName(name).toLowerCase()
 
 function RecipientEditor({
   recipient,
   busy,
-  suggestionsId,
   onSave,
   onCancel,
 }: {
   recipient: EmailRecipient
   busy: boolean
-  suggestionsId: string
-  onSave: (name: string, designerName: string) => void
+  onSave: (name: string) => void
   onCancel: () => void
 }) {
   const [name, setName] = useState(recipient.name)
-  const [designer, setDesigner] = useState(recipient.designerName)
   return (
     <form
       className="email-time-edit"
       onSubmit={(e) => {
         e.preventDefault()
-        onSave(name, designer)
+        onSave(name)
       }}
     >
       <p className="email-address email-edit-title">{recipient.email}</p>
@@ -54,21 +40,6 @@ function RecipientEditor({
         <span>Name</span>
         <input type="text" value={name} maxLength={120} onChange={(e) => setName(e.target.value)} />
       </label>
-      <label className="field">
-        <span>Designer name on posts</span>
-        <input
-          type="text"
-          value={designer}
-          maxLength={120}
-          list={suggestionsId}
-          placeholder="Leave empty if not a designer"
-          onChange={(e) => setDesigner(e.target.value)}
-        />
-      </label>
-      <p className="muted small email-edit-hint">
-        Only link an address you have confirmed belongs to this designer. Assignment emails for this designer will go
-        to this address.
-      </p>
       <div className="email-list-actions">
         <button type="button" className="button button-ghost button-small" onClick={onCancel}>
           Cancel
@@ -81,7 +52,7 @@ function RecipientEditor({
   )
 }
 
-export function RecipientsPanel({ recipients, designerNames, onChange, onNotify }: RecipientsPanelProps) {
+export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPanelProps) {
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
@@ -89,14 +60,7 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
   const [busyId, setBusyId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [pendingRemove, setPendingRemove] = useState<EmailRecipient | null>(null)
-  const suggestionsId = useId()
-
-  const linked = useMemo(
-    () => new Set(recipients.filter((r) => r.active && r.designerName).map((r) => designerKey(r.designerName))),
-    [recipients],
-  )
-  const unlinked = designerNames.filter((d) => !linked.has(designerKey(d)))
-  const assignmentFallback = recipients.filter((r) => r.active && r.receivesAssignments)
+  const assignmentCopies = recipients.filter((r) => r.active && r.receivesAssignments)
 
   const handleAdd = async (e: FormEvent) => {
     e.preventDefault()
@@ -139,14 +103,8 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
     }
   }
 
-  const saveDetails = async (recipient: EmailRecipient, newName: string, designer: string) => {
-    const designerName = normalizeDesignerName(designer)
-    const clash = recipients.find((r) => r.id !== recipient.id && designerName && designerKey(r.designerName) === designerKey(designerName))
-    if (clash) {
-      onNotify(`“${designerName}” is already linked to ${clash.email}.`, 'error')
-      return
-    }
-    if (await patch(recipient, { name: newName, designerName }, 'Recipient saved')) setEditingId(null)
+  const saveDetails = async (recipient: EmailRecipient, newName: string) => {
+    if (await patch(recipient, { name: newName }, 'Recipient saved')) setEditingId(null)
   }
 
   const confirmRemove = async () => {
@@ -174,8 +132,8 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
           </h2>
           <p className="muted small">
             <strong>Digest</strong>: scheduled progress digests. <strong>Workflow</strong>: Ready for Review, approval and
-            deadline emails. <strong>Assignments</strong>: assignment emails for designers who have no linked address.
-            Disabled recipients are never emailed.
+            deadline emails. <strong>Assignments</strong>: a copy of every assignment email. Disabled recipients are
+            never emailed.
           </p>
         </div>
         <span className="pill">{recipients.filter((r) => r.active).length} active</span>
@@ -212,12 +170,6 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
         </p>
       )}
 
-      <datalist id={suggestionsId}>
-        {designerNames.map((d) => (
-          <option key={d} value={d} />
-        ))}
-      </datalist>
-
       {recipients.length === 0 ? (
         <p className="empty-state">No recipients yet. Add the office address and anyone who should receive reminders.</p>
       ) : (
@@ -230,8 +182,7 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
                   <RecipientEditor
                     recipient={r}
                     busy={busy}
-                    suggestionsId={suggestionsId}
-                    onSave={(newName, designer) => void saveDetails(r, newName, designer)}
+                    onSave={(newName) => void saveDetails(r, newName)}
                     onCancel={() => setEditingId(null)}
                   />
                 </li>
@@ -243,7 +194,6 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
                   <span className="email-address">{r.email}</span>
                   <span className="muted small">
                     {r.name || 'No name'}
-                    {r.designerName && ` · Designer: ${r.designerName}`}
                     {!r.active && ' · Disabled'}
                   </span>
                 </div>
@@ -274,7 +224,7 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
                     />
                     Workflow
                   </label>
-                  <label className="checkbox" title="Assignment emails for designers who have no linked address">
+                  <label className="checkbox" title="A copy of every assignment email">
                     <input
                       type="checkbox"
                       checked={r.receivesAssignments}
@@ -319,11 +269,11 @@ export function RecipientsPanel({ recipients, designerNames, onChange, onNotify 
 
       <div className="email-designer-links muted small">
         <p>
-          <strong>Assignment emails:</strong> sent to the designer’s linked address (set with <em>Edit → Designer name on
-          posts</em>). Designers without a linked address are emailed to recipients with <em>Assignments</em> ticked
-          {assignmentFallback.length === 0 ? ' — currently nobody, so those assignments send no email.' : ` (${assignmentFallback.length}).`}
+          <strong>Designers</strong> do not need to be listed here: assignment, approval and change-request emails go to
+          the email address of their designer account. Copies of assignment emails go to recipients with{' '}
+          <em>Assignments</em> ticked
+          {assignmentCopies.length === 0 ? ' — currently nobody.' : ` (${assignmentCopies.length}).`}
         </p>
-        {unlinked.length > 0 && <p>Designers on posts without a linked address: {unlinked.join(', ')}.</p>}
       </div>
 
       {pendingRemove && (

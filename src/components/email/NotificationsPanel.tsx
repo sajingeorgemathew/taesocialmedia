@@ -7,23 +7,29 @@ interface NotificationsPanelProps {
   onSaveSettings: (patch: Partial<Omit<EmailSettings, 'updatedAt'>>, message: string) => Promise<boolean>
 }
 
-type ToggleKey = 'notifyAssignment' | 'notifyReadyForReview' | 'notifyApproved' | 'notifyDeadline'
+type ToggleKey = 'notifyAssignment' | 'notifyReadyForReview' | 'notifyApproved' | 'notifyChangesRequested' | 'notifyDeadline'
 
 const TOGGLES: { key: ToggleKey; label: string; description: string }[] = [
   {
     key: 'notifyAssignment',
     label: 'Assignment notifications',
-    description: 'To the designer’s linked address; if none is linked, to recipients with “Assignments” ticked.',
+    description:
+      'When a post is assigned or reassigned. Sent to the designer’s account email, with a copy to recipients with “Assignments” ticked.',
   },
   {
     key: 'notifyReadyForReview',
     label: 'Ready for Review notifications',
-    description: 'When a post moves to Ready for Review. Sent to recipients with “Workflow” ticked.',
+    description: 'When a designer submits a post for review. Sent to recipients with “Workflow” ticked.',
   },
   {
     key: 'notifyApproved',
     label: 'Approval notifications',
-    description: 'When a post is approved and ready to publish. Sent to “Workflow” recipients.',
+    description: 'When a post is approved and ready to publish. Sent to “Workflow” recipients and the assigned designer.',
+  },
+  {
+    key: 'notifyChangesRequested',
+    label: 'Changes requested notifications',
+    description: 'When an administrator sends a post back with feedback. Sent to the assigned designer.',
   },
   {
     key: 'notifyDeadline',
