@@ -1,3 +1,4 @@
+import { CircleAlert, Send } from 'lucide-react'
 import { useState } from 'react'
 import { sendTestEmail } from '../../email/emailRepository'
 import type { EmailRecipient, TestSendResult } from '../../email/types'
@@ -65,6 +66,7 @@ export function TestEmailPanel({ recipients, onNotify, onSent }: TestEmailPanelP
       <div className="panel-heading">
         <div>
           <h2 id="email-test-title" className="panel-title">
+            <Send aria-hidden="true" />
             Send Test Email
           </h2>
           <p className="muted small">Sends the live progress digest now, marked “[Test]”. Works even while reminders are paused.</p>
@@ -94,13 +96,17 @@ export function TestEmailPanel({ recipients, onNotify, onSent }: TestEmailPanelP
               <span className="spinner" aria-hidden="true" /> Sending…
             </>
           ) : (
-            `Send test email${selected.length > 0 ? ` (${selected.length})` : ''}`
+            <>
+              <Send aria-hidden="true" />
+              {`Send test email${selected.length > 0 ? ` (${selected.length})` : ''}`}
+            </>
           )}
         </button>
       </div>
 
       {error && (
         <p className="alert" role="alert">
+          <CircleAlert aria-hidden="true" />
           {error}
         </p>
       )}

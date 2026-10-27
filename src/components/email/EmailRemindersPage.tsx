@@ -1,3 +1,4 @@
+import { BellRing, CircleAlert, PauseCircle, PlayCircle } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { loadEmailConfig, updateEmailSettings, type EmailConfig } from '../../email/emailRepository'
 import { describeWeekdays, formatTorontoDateTime, nextDigestSend } from '../../email/schedule'
@@ -93,7 +94,7 @@ export function EmailRemindersPage({ onNotify }: EmailRemindersPageProps) {
   if (state.status === 'loading') {
     return (
       <section className="panel">
-        <p className="empty-state" role="status">
+        <p className="loading-state" role="status">
           <span className="spinner" aria-hidden="true" /> Loading email reminder settings…
         </p>
       </section>
@@ -105,7 +106,10 @@ export function EmailRemindersPage({ onNotify }: EmailRemindersPageProps) {
       <section className="panel email-page-error">
         <h2 className="panel-title">Email Reminders</h2>
         <div className="alert alert-row" role="alert">
-          <span>{state.message}</span>
+          <span>
+            <CircleAlert aria-hidden="true" />
+            {state.message}
+          </span>
           <button type="button" className="button button-ghost button-small" onClick={retry}>
             Try again
           </button>
@@ -122,7 +126,9 @@ export function EmailRemindersPage({ onNotify }: EmailRemindersPageProps) {
     <div className="email-page">
       <section className={`panel email-status${settings.paused ? ' is-paused' : ''}`} aria-labelledby="email-status-title">
         <div className="email-status-main">
-          <span className="email-status-indicator" aria-hidden="true" />
+          <span className="email-status-indicator" aria-hidden="true">
+            {settings.paused ? <PauseCircle /> : <BellRing />}
+          </span>
           <div>
             <h2 id="email-status-title" className="email-status-title">
               {settings.paused ? 'All scheduled reminders are paused' : 'Scheduled reminders are active'}
@@ -142,10 +148,12 @@ export function EmailRemindersPage({ onNotify }: EmailRemindersPageProps) {
           </span>
           {settings.paused ? (
             <button type="button" className="button button-primary" disabled={pausing} onClick={() => void togglePause(false)}>
+              <PlayCircle aria-hidden="true" />
               {pausing ? 'Resuming…' : 'Resume reminders'}
             </button>
           ) : (
-            <button type="button" className="button button-ghost button-danger-text" disabled={pausing} onClick={() => setConfirmPause(true)}>
+            <button type="button" className="button button-secondary button-danger-text" disabled={pausing} onClick={() => setConfirmPause(true)}>
+              <PauseCircle aria-hidden="true" />
               Pause All Reminders
             </button>
           )}

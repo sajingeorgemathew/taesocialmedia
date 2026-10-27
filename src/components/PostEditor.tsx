@@ -1,4 +1,19 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import {
+  ClipboardCheck,
+  Copy,
+  FileText,
+  ImageIcon,
+  Lock,
+  MessageSquareText,
+  NotebookPen,
+  Rocket,
+  Trash2,
+  TriangleAlert,
+  Type,
+  UserRound,
+  type LucideIcon,
+} from 'lucide-react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import type { TeamMember } from '../auth/authContext'
 import { accountLabel, type TeamAccount } from '../team/teamRepository'
 import {
@@ -12,12 +27,13 @@ import {
   type PostDraft,
   type SocialPost,
 } from '../types'
-import { isValidDateKey } from '../utils/date'
+import { formatLongDate, isValidDateKey } from '../utils/date'
 import { canEditPost, canReview, isAdmin, statusOptions } from '../utils/permissions'
 import { designerLabel, statusSlug } from '../utils/posts'
 import { SavedArtwork, StagedArtwork, type StagedFile } from './ArtworkUploader'
 import { ConfirmDialog } from './ConfirmDialog'
 import { Modal } from './Modal'
+import { StatusBadge } from './StatusBadge'
 
 export interface SaveRequest {
   draft: PostDraft
@@ -82,6 +98,52 @@ function validate(draft: PostDraft): Errors {
   return errors
 }
 
+const SECTIONS: { id: string; label: string }[] = [
+  { id: 'editor-info', label: 'Post information' },
+  { id: 'editor-brief', label: 'Creative brief' },
+  { id: 'editor-copy', label: 'Captions & scripts' },
+  { id: 'editor-artwork', label: 'Artwork' },
+  { id: 'editor-publishing', label: 'Publishing' },
+]
+
+function EditorSection({
+  id,
+  icon: Icon,
+  title,
+  description,
+  children,
+}: {
+  id: string
+  icon: LucideIcon
+  title: string
+  description?: string
+  children: ReactNode
+}) {
+  return (
+    <section id={id} className="editor-section" aria-labelledby={`${id}-title`}>
+      <header className="editor-section-header">
+        <span className="editor-section-icon" aria-hidden="true">
+          <Icon />
+        </span>
+        <div>
+          <h3 id={`${id}-title`} className="editor-section-title">
+            {title}
+          </h3>
+          {description && <p className="editor-section-description">{description}</p>}
+        </div>
+      </header>
+      <div className="editor-grid">{children}</div>
+    </section>
+  )
+}
+
+function formatTimestamp(iso: string): string {
+  const date = new Date(iso)
+  return Number.isNaN(date.getTime())
+    ? ''
+    : date.toLocaleString('en-CA', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 /** Approve / Request changes, for admins on posts waiting for review. */
 function ReviewPanel({ post, disabled, review }: { post: SocialPost; disabled: boolean; review: ReviewHandlers }) {
   const [note, setNote] = useState('')
@@ -106,12 +168,24 @@ function ReviewPanel({ post, disabled, review }: { post: SocialPost; disabled: b
     void run(() => review.onRequestChanges(note.trim()))
   }
 
+  const awaiting = post.status === 'Ready for Review'
+
   return (
-    <div className="review-panel field-full">
+    <div className={`review-panel${awaiting ? ' is-awaiting' : ''}`}>
       <div className="review-panel-heading">
-        <strong>{post.status === 'Ready for Review' ? 'Review this post' : 'Approved — send back if needed'}</strong>
-        {disabled && <span className="muted small">Save or discard your edits first.</span>}
+        <span className="review-panel-icon" aria-hidden="true">
+          <ClipboardCheck />
+        </span>
+        <div>
+          <strong>{awaiting ? 'Review this post' : 'Approved — send back if needed'}</strong>
+          <p className="muted small">
+            {awaiting
+              ? 'Approve it for publishing, or send it back to the designer with a note.'
+              : 'Request changes to move it back to In Design with your feedback.'}
+          </p>
+        </div>
       </div>
+      {disabled && <p className="review-panel-hint">Save or discard your edits first.</p>}
       {requesting ? (
         <>
           <label className="field">
@@ -140,16 +214,23 @@ function ReviewPanel({ post, disabled, review }: { post: SocialPost; disabled: b
         </>
       ) : (
         <div className="review-actions">
-          <button type="button" className="button button-secondary button-small" onClick={() => setRequesting(true)} disabled={busy || disabled}>
+          <button
+            type="button"
+            className="button button-secondary button-small"
+            onClick={() => setRequesting(true)}
+            disabled={busy || disabled}
+          >
+            <MessageSquareText aria-hidden="true" />
             Request changes
           </button>
-          {post.status === 'Ready for Review' && (
+          {awaiting && (
             <button
               type="button"
-              className="button button-primary button-small"
+              className="button button-success button-small"
               onClick={() => void run(review.onApprove)}
               disabled={busy || disabled}
             >
+              <ClipboardCheck aria-hidden="true" />
               {busy ? 'Approving…' : 'Approve'}
             </button>
           )}
@@ -245,17 +326,39 @@ export function PostEditor({
     void submit(false)
   }
 
+  const jumpTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const errorCount = Object.values(errors).filter(Boolean).length
+
   return (
     <>
       <Modal
-        title={post ? 'Edit post' : 'New post'}
+        title={post ? (readOnly ? 'View post' : 'Edit post') : 'New post'}
         onClose={requestClose}
+        size="wide"
+        description={
+          post ? (
+            <span className="editor-subtitle">
+              <StatusBadge status={post.status} />
+              <span>{formatLongDate(post.publishDate)}</span>
+              {readOnly && (
+                <span className="pill">
+                  <Lock aria-hidden="true" />
+                  Read-only
+                </span>
+              )}
+              {isDirty && !readOnly && <span className="pill pill-gold">Unsaved changes</span>}
+            </span>
+          ) : (
+            <span className="editor-subtitle">Plan the post, brief the designer and attach artwork.</span>
+          )
+        }
         footer={
           <>
             {post && (
               <div className="footer-secondary">
                 {onDelete && (
                   <button type="button" className="button button-ghost button-danger-text" onClick={() => onDelete(post)}>
+                    <Trash2 aria-hidden="true" />
                     Delete
                   </button>
                 )}
@@ -266,12 +369,19 @@ export function PostEditor({
                     onClick={() => onDuplicate(post)}
                     title="Creates a Planned copy of the saved post"
                   >
+                    <Copy aria-hidden="true" />
                     Duplicate
                   </button>
                 )}
               </div>
             )}
-            <button type="button" className="button button-ghost" onClick={requestClose}>
+            {errorCount > 0 && (
+              <span className="editor-footer-error" role="status">
+                <TriangleAlert aria-hidden="true" />
+                {errorCount === 1 ? '1 field needs attention' : `${errorCount} fields need attention`}
+              </span>
+            )}
+            <button type="button" className="button button-secondary" onClick={requestClose}>
               {readOnly ? 'Close' : 'Cancel'}
             </button>
             {!readOnly && (
@@ -288,32 +398,36 @@ export function PostEditor({
           </>
         }
       >
-        <form id="post-editor-form" className="editor-form" onSubmit={handleSubmit} noValidate>
+        <form id="post-editor-form" className="editor" onSubmit={handleSubmit} noValidate>
           {conflict === 'changed' && (
-            <div className="conflict-notice field-full" role="alert">
-              <p>
-                <strong>Another team member saved changes to this post</strong> after you opened it. Your edits
-                below have not been saved.
-              </p>
-              <div className="conflict-actions">
-                {onLoadLatest && (
-                  <button type="button" className="button button-ghost button-small" onClick={onLoadLatest}>
-                    Discard mine &amp; load their version
+            <div className="editor-notice is-danger" role="alert">
+              <TriangleAlert aria-hidden="true" />
+              <div>
+                <p>
+                  <strong>Another team member saved changes to this post</strong> after you opened it. Your edits
+                  below have not been saved.
+                </p>
+                <div className="conflict-actions">
+                  {onLoadLatest && (
+                    <button type="button" className="button button-secondary button-small" onClick={onLoadLatest}>
+                      Discard mine &amp; load their version
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    className="button button-primary button-small"
+                    disabled={saving}
+                    onClick={() => void submit(true)}
+                  >
+                    {saving ? 'Saving…' : 'Overwrite with my version'}
                   </button>
-                )}
-                <button
-                  type="button"
-                  className="button button-primary button-small"
-                  disabled={saving}
-                  onClick={() => void submit(true)}
-                >
-                  {saving ? 'Saving…' : 'Overwrite with my version'}
-                </button>
+                </div>
               </div>
             </div>
           )}
           {conflict === 'deleted' && (
-            <div className="conflict-notice field-full" role="alert">
+            <div className="editor-notice is-danger" role="alert">
+              <TriangleAlert aria-hidden="true" />
               <p>
                 <strong>This post was deleted by another team member.</strong> It can no longer be saved. Copy any
                 text you want to keep before closing the editor.
@@ -322,270 +436,345 @@ export function PostEditor({
           )}
 
           {post && readOnly && (
-            <div className="readonly-notice field-full" role="note">
-              <strong>Read-only — {post.status}.</strong> Only an administrator can change this post. To make further
-              changes, ask an administrator to reopen it (move it back to In Design).
-            </div>
-          )}
-          {post?.changesRequestedAt && (
-            <div className="review-notice field-full" role="status">
-              <strong>Changes requested</strong>
-              {post.reviewNote && <p>{post.reviewNote}</p>}
-            </div>
-          )}
-          {post && admin && !post.changesRequestedAt && post.reviewNote && post.status === 'Ready for Review' && (
-            <div className="review-notice is-history field-full">
-              <strong>Previous feedback</strong>
-              <p>{post.reviewNote}</p>
-            </div>
-          )}
-          {post && review && canReview(member, post) && (
-            <ReviewPanel post={post} disabled={isDirty || conflict !== null} review={review} />
-          )}
-
-          <fieldset className="field field-full">
-            <legend>Workflow status</legend>
-            <div className="status-stepper" role="radiogroup" aria-label="Workflow status">
-              {STATUSES.map((status, index) => (
-                <button
-                  key={status}
-                  type="button"
-                  role="radio"
-                  aria-checked={draft.status === status}
-                  disabled={readOnly || !allowedStatuses.includes(status)}
-                  className={`step status-${statusSlug(status)}${draft.status === status ? ' is-active' : ''}${
-                    STATUSES.indexOf(draft.status) > index ? ' is-complete' : ''
-                  }`}
-                  onClick={() => set('status', status)}
-                >
-                  <span className="step-index">{index + 1}</span>
-                  {status}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <label className="field field-full">
-            <span>Post title *</span>
-            <input
-              type="text"
-              value={draft.title}
-              onChange={(e) => set('title', e.target.value)}
-              placeholder="e.g. November 16 Intake Announcement"
-              aria-invalid={Boolean(errors.title)}
-              readOnly={locked}
-              data-autofocus
-            />
-            {errors.title && <span className="field-error">{errors.title}</span>}
-          </label>
-
-          <label className="field">
-            <span>Publishing date *</span>
-            <input
-              type="date"
-              value={draft.publishDate}
-              onChange={(e) => set('publishDate', e.target.value)}
-              aria-invalid={Boolean(errors.publishDate)}
-              readOnly={locked}
-            />
-            {errors.publishDate && <span className="field-error">{errors.publishDate}</span>}
-          </label>
-
-          <label className="field">
-            <span>Program or campaign</span>
-            <select
-              value={draft.program}
-              disabled={locked}
-              onChange={(e) => set('program', e.target.value as PostDraft['program'])}
-            >
-              {PROGRAMS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <fieldset className="field">
-            <legend>Platforms *</legend>
-            <div className="checkbox-group">
-              {PLATFORMS.map((platform) => (
-                <label key={platform} className="checkbox">
-                  <input
-                    type="checkbox"
-                    checked={draft.platforms.includes(platform)}
-                    disabled={locked}
-                    onChange={() => togglePlatform(platform)}
-                  />
-                  {platform}
-                </label>
-              ))}
-            </div>
-            {errors.platforms && <span className="field-error">{errors.platforms}</span>}
-          </fieldset>
-
-          <label className="field">
-            <span>Content format</span>
-            <select
-              value={draft.format}
-              disabled={locked}
-              onChange={(e) => set('format', e.target.value as PostDraft['format'])}
-            >
-              {FORMATS.map((f) => (
-                <option key={f} value={f}>
-                  {f}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="field field-full content-section">
-            <span>1. Social Media Caption</span>
-            <span className="field-description">Text published below the post on the platform.</span>
-            <textarea
-              rows={4}
-              value={draft.caption}
-              readOnly={readOnly}
-              onChange={(e) => set('caption', e.target.value)}
-              placeholder="Write the post caption, hashtags and call to action."
-            />
-            <span className="field-hint">{draft.caption.length} characters</span>
-          </label>
-
-          <label className="field field-full content-section">
-            <span>2. Creative Wording / On-Design Text</span>
-            <span className="field-description">
-              The exact wording the designer should place inside the visual creative.
-            </span>
-            <textarea
-              rows={draft.format === 'Carousel' ? 6 : 4}
-              value={draft.creativeWording}
-              readOnly={readOnly}
-              onChange={(e) => set('creativeWording', e.target.value)}
-              placeholder={CREATIVE_WORDING_PLACEHOLDERS[draft.format]}
-            />
-          </label>
-
-          <label className="field field-full content-section">
-            <span>3. Design Brief / Visual Instructions</span>
-            <span className="field-description">
-              Layout, photography, colours and branding. Keep on-design text in section 2.
-            </span>
-            <textarea
-              rows={3}
-              value={draft.designBrief}
-              readOnly={readOnly}
-              onChange={(e) => set('designBrief', e.target.value)}
-              placeholder="What should the designer create? Sizes, layout, imagery, colours and branding."
-            />
-          </label>
-
-          {draft.format === 'Reel' && (
-            <label className="field field-full content-section">
-              <span>Reel Script / Scene Instructions</span>
-              <span className="field-description">Optional. Scenes, voiceover and on-screen text.</span>
-              <textarea
-                rows={5}
-                value={draft.reelScript}
-                readOnly={readOnly}
-                onChange={(e) => set('reelScript', e.target.value)}
-                placeholder={
-                  'Scene 1 (0–3s): Hook — on-screen text…\nScene 2 (3–8s): B-roll of… / Voiceover: …\nScene 3: Closing CTA — …'
-                }
-              />
-            </label>
-          )}
-
-          {admin ? (
-            <label className="field">
-              <span>Primary designer</span>
-              <select value={draft.designerId ?? ''} onChange={(e) => set('designerId', e.target.value || null)}>
-                <option value="">Unassigned</option>
-                {designerChoices.map((a) => (
-                  <option key={a.userId} value={a.userId}>
-                    {accountLabel(a)}
-                    {a.active ? '' : ' (disabled)'}
-                  </option>
-                ))}
-              </select>
-              {post && !post.designerId && post.designer && !draft.designerId && (
-                <span className="field-hint">
-                  Previously typed name: “{post.designer}”. Choose the matching designer account.
-                </span>
-              )}
-              {designerChoices.length === 0 && (
-                <span className="field-hint">No designer accounts yet. Add them in Supabase (see SUPABASE_SETUP.md).</span>
-              )}
-            </label>
-          ) : (
-            <div className="field">
-              <span>Primary designer</span>
-              <p className="field-static">
-                {post ? designerLabel(post) : 'Unassigned'}
-                {!readOnly && <span className="muted small"> · any designer can contribute; only the office assigns</span>}
+            <div className="editor-notice" role="note">
+              <Lock aria-hidden="true" />
+              <p>
+                <strong>Read-only — {post.status}.</strong> Only an administrator can change this post. To make further
+                changes, ask an administrator to reopen it (move it back to In Design).
               </p>
             </div>
           )}
+          {post?.changesRequestedAt && (
+            <div className="editor-notice is-changes" role="status">
+              <MessageSquareText aria-hidden="true" />
+              <div>
+                <strong>Changes requested</strong>
+                {post.reviewNote && <p className="editor-notice-quote">{post.reviewNote}</p>}
+              </div>
+            </div>
+          )}
+          {post && admin && !post.changesRequestedAt && post.reviewNote && post.status === 'Ready for Review' && (
+            <div className="editor-notice is-history">
+              <MessageSquareText aria-hidden="true" />
+              <div>
+                <strong>Previous feedback</strong>
+                <p className="editor-notice-quote">{post.reviewNote}</p>
+              </div>
+            </div>
+          )}
 
-          <label className="field">
-            <span>Artwork URL or reference</span>
-            <input
-              type="text"
-              value={draft.artworkUrl}
-              readOnly={readOnly}
-              onChange={(e) => set('artworkUrl', e.target.value)}
-              placeholder="Canva / Drive link or file name"
-            />
-          </label>
+          <div className="editor-layout">
+            <div className="editor-main">
+              <nav className="editor-nav" aria-label="Editor sections">
+                {SECTIONS.map((s) => (
+                  <button key={s.id} type="button" className="editor-nav-item" onClick={() => jumpTo(s.id)}>
+                    {s.label}
+                  </button>
+                ))}
+              </nav>
 
-          <div className="field field-full content-section">
-            <span>Uploaded artwork</span>
-            <span className="field-description">
-              {draft.format === 'Carousel'
-                ? 'Upload every carousel slide; use the arrows to set the slide order.'
-                : 'Final artwork files for this post. Stored privately for the TAE team.'}
-            </span>
-            {post && artwork ? (
-              conflict === 'deleted' ? (
-                <p className="artwork-empty">Artwork is unavailable because the post was deleted.</p>
-              ) : (
-                <SavedArtwork
-                  format={draft.format}
-                  artwork={post.artwork}
-                  onUpload={artwork.onUpload}
-                  onRemove={artwork.onRemove}
-                  onReorder={artwork.onReorder}
-                  readOnly={readOnly}
-                />
-              )
-            ) : (
-              <StagedArtwork format={draft.format} files={stagedFiles} onChange={setStagedFiles} />
-            )}
+              <EditorSection
+                id="editor-info"
+                icon={FileText}
+                title="Post information"
+                description={locked && !readOnly ? 'Scheduling details are managed by the office.' : undefined}
+              >
+                <label className="field field-full">
+                  <span>Post title *</span>
+                  <input
+                    type="text"
+                    value={draft.title}
+                    onChange={(e) => set('title', e.target.value)}
+                    placeholder="e.g. November 16 Intake Announcement"
+                    aria-invalid={Boolean(errors.title)}
+                    readOnly={locked}
+                    data-autofocus
+                  />
+                  {errors.title && <span className="field-error">{errors.title}</span>}
+                </label>
+
+                <label className="field">
+                  <span>Publishing date *</span>
+                  <input
+                    type="date"
+                    value={draft.publishDate}
+                    onChange={(e) => set('publishDate', e.target.value)}
+                    aria-invalid={Boolean(errors.publishDate)}
+                    readOnly={locked}
+                  />
+                  {errors.publishDate && <span className="field-error">{errors.publishDate}</span>}
+                </label>
+
+                <label className="field">
+                  <span>Program or campaign</span>
+                  <select
+                    value={draft.program}
+                    disabled={locked}
+                    onChange={(e) => set('program', e.target.value as PostDraft['program'])}
+                  >
+                    {PROGRAMS.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <fieldset className="field">
+                  <legend>Platforms *</legend>
+                  <div className="platform-picker">
+                    {PLATFORMS.map((platform) => (
+                      <label
+                        key={platform}
+                        className={`platform-option${draft.platforms.includes(platform) ? ' is-selected' : ''}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={draft.platforms.includes(platform)}
+                          disabled={locked}
+                          onChange={() => togglePlatform(platform)}
+                        />
+                        {platform}
+                      </label>
+                    ))}
+                  </div>
+                  {errors.platforms && <span className="field-error">{errors.platforms}</span>}
+                </fieldset>
+
+                <label className="field">
+                  <span>Content format</span>
+                  <select
+                    value={draft.format}
+                    disabled={locked}
+                    onChange={(e) => set('format', e.target.value as PostDraft['format'])}
+                  >
+                    {FORMATS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </EditorSection>
+
+              <EditorSection
+                id="editor-brief"
+                icon={NotebookPen}
+                title="Creative brief"
+                description="What the designer should create and the exact words that go on it."
+              >
+                <label className="field field-full">
+                  <span>Design brief / visual instructions</span>
+                  <span className="field-description">
+                    Layout, photography, colours and branding. Keep on-design text in Creative wording below.
+                  </span>
+                  <textarea
+                    rows={3}
+                    value={draft.designBrief}
+                    readOnly={readOnly}
+                    onChange={(e) => set('designBrief', e.target.value)}
+                    placeholder="What should the designer create? Sizes, layout, imagery, colours and branding."
+                  />
+                </label>
+
+                <label className="field field-full">
+                  <span>Creative wording / on-design text</span>
+                  <span className="field-description">
+                    The exact wording the designer should place inside the visual creative.
+                  </span>
+                  <textarea
+                    rows={draft.format === 'Carousel' ? 6 : 4}
+                    value={draft.creativeWording}
+                    readOnly={readOnly}
+                    onChange={(e) => set('creativeWording', e.target.value)}
+                    placeholder={CREATIVE_WORDING_PLACEHOLDERS[draft.format]}
+                  />
+                </label>
+              </EditorSection>
+
+              <EditorSection id="editor-copy" icon={Type} title="Captions & scripts">
+                <label className="field field-full">
+                  <span>Social media caption</span>
+                  <span className="field-description">Text published below the post on the platform.</span>
+                  <textarea
+                    rows={4}
+                    value={draft.caption}
+                    readOnly={readOnly}
+                    onChange={(e) => set('caption', e.target.value)}
+                    placeholder="Write the post caption, hashtags and call to action."
+                  />
+                  <span className="field-hint field-count">{draft.caption.length} characters</span>
+                </label>
+
+                {draft.format === 'Reel' && (
+                  <label className="field field-full">
+                    <span>Reel script / scene instructions</span>
+                    <span className="field-description">Optional. Scenes, voiceover and on-screen text.</span>
+                    <textarea
+                      rows={5}
+                      value={draft.reelScript}
+                      readOnly={readOnly}
+                      onChange={(e) => set('reelScript', e.target.value)}
+                      placeholder={
+                        'Scene 1 (0–3s): Hook — on-screen text…\nScene 2 (3–8s): B-roll of… / Voiceover: …\nScene 3: Closing CTA — …'
+                      }
+                    />
+                  </label>
+                )}
+              </EditorSection>
+
+              <EditorSection
+                id="editor-artwork"
+                icon={ImageIcon}
+                title="Artwork & attachments"
+                description={
+                  draft.format === 'Carousel'
+                    ? 'Upload every carousel slide; use the arrows to set the slide order.'
+                    : 'Final artwork files for this post. Stored privately for the TAE team.'
+                }
+              >
+                <label className="field field-full">
+                  <span>Artwork URL or reference</span>
+                  <input
+                    type="text"
+                    value={draft.artworkUrl}
+                    readOnly={readOnly}
+                    onChange={(e) => set('artworkUrl', e.target.value)}
+                    placeholder="Canva / Drive link or file name"
+                  />
+                </label>
+
+                <div className="field field-full">
+                  <span>Uploaded artwork</span>
+                  {post && artwork ? (
+                    conflict === 'deleted' ? (
+                      <p className="artwork-empty">Artwork is unavailable because the post was deleted.</p>
+                    ) : (
+                      <SavedArtwork
+                        format={draft.format}
+                        artwork={post.artwork}
+                        onUpload={artwork.onUpload}
+                        onRemove={artwork.onRemove}
+                        onReorder={artwork.onReorder}
+                        readOnly={readOnly}
+                      />
+                    )
+                  ) : (
+                    <StagedArtwork format={draft.format} files={stagedFiles} onChange={setStagedFiles} />
+                  )}
+                </div>
+              </EditorSection>
+
+              <EditorSection id="editor-publishing" icon={Rocket} title="Publishing details">
+                <label className="field field-full">
+                  <span>Published post URL</span>
+                  <input
+                    type="url"
+                    value={draft.publishedUrl}
+                    readOnly={locked}
+                    onChange={(e) => set('publishedUrl', e.target.value)}
+                    placeholder={draft.status === 'Published' ? 'Paste the live post link' : 'Add once the post is live'}
+                    aria-invalid={Boolean(errors.publishedUrl)}
+                  />
+                  {errors.publishedUrl && <span className="field-error">{errors.publishedUrl}</span>}
+                </label>
+
+                <label className="field field-full">
+                  <span>Internal notes</span>
+                  <textarea
+                    rows={3}
+                    value={draft.notes}
+                    readOnly={readOnly}
+                    onChange={(e) => set('notes', e.target.value)}
+                    placeholder="Approvals, reminders, things to verify before publishing."
+                  />
+                </label>
+              </EditorSection>
+            </div>
+
+            <aside className="editor-side" aria-label="Workflow">
+              {post && review && canReview(member, post) && (
+                <ReviewPanel post={post} disabled={isDirty || conflict !== null} review={review} />
+              )}
+
+              <fieldset className="side-card">
+                <legend className="side-card-title">Workflow status</legend>
+                <div className="status-stepper" role="radiogroup" aria-label="Workflow status">
+                  {STATUSES.map((status, index) => (
+                    <button
+                      key={status}
+                      type="button"
+                      role="radio"
+                      aria-checked={draft.status === status}
+                      disabled={readOnly || !allowedStatuses.includes(status)}
+                      className={`step status-${statusSlug(status)}${draft.status === status ? ' is-active' : ''}${
+                        STATUSES.indexOf(draft.status) > index ? ' is-complete' : ''
+                      }`}
+                      onClick={() => set('status', status)}
+                    >
+                      <span className="step-index">{index + 1}</span>
+                      <span className="step-label">{status}</span>
+                    </button>
+                  ))}
+                </div>
+                {!admin && !readOnly && (
+                  <p className="side-card-hint">Approval and publishing are done by the office.</p>
+                )}
+              </fieldset>
+
+              <div className="side-card">
+                {admin ? (
+                  <label className="field">
+                    <span className="side-card-title">
+                      <UserRound aria-hidden="true" />
+                      Primary designer
+                    </span>
+                    <select value={draft.designerId ?? ''} onChange={(e) => set('designerId', e.target.value || null)}>
+                      <option value="">Unassigned</option>
+                      {designerChoices.map((a) => (
+                        <option key={a.userId} value={a.userId}>
+                          {accountLabel(a)}
+                          {a.active ? '' : ' (disabled)'}
+                        </option>
+                      ))}
+                    </select>
+                    {post && !post.designerId && post.designer && !draft.designerId && (
+                      <span className="field-hint">
+                        Previously typed name: “{post.designer}”. Choose the matching designer account.
+                      </span>
+                    )}
+                    {designerChoices.length === 0 && (
+                      <span className="field-hint">No designer accounts yet. Add them in Supabase (see SUPABASE_SETUP.md).</span>
+                    )}
+                  </label>
+                ) : (
+                  <div className="field">
+                    <span className="side-card-title">
+                      <UserRound aria-hidden="true" />
+                      Primary designer
+                    </span>
+                    <p className="field-static">{post ? designerLabel(post) : 'Unassigned'}</p>
+                    {!readOnly && (
+                      <span className="field-hint">Any designer can contribute; only the office assigns.</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {post && (
+                <dl className="side-meta">
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{formatTimestamp(post.createdAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Last updated</dt>
+                    <dd>{formatTimestamp(post.updatedAt)}</dd>
+                  </div>
+                </dl>
+              )}
+            </aside>
           </div>
-
-          <label className="field field-full">
-            <span>Published post URL</span>
-            <input
-              type="url"
-              value={draft.publishedUrl}
-              readOnly={locked}
-              onChange={(e) => set('publishedUrl', e.target.value)}
-              placeholder={draft.status === 'Published' ? 'Paste the live post link' : 'Add once the post is live'}
-              aria-invalid={Boolean(errors.publishedUrl)}
-            />
-            {errors.publishedUrl && <span className="field-error">{errors.publishedUrl}</span>}
-          </label>
-
-          <label className="field field-full">
-            <span>Internal notes</span>
-            <textarea
-              rows={3}
-              value={draft.notes}
-              readOnly={readOnly}
-              onChange={(e) => set('notes', e.target.value)}
-              placeholder="Approvals, reminders, things to verify before publishing."
-            />
-          </label>
         </form>
       </Modal>
 

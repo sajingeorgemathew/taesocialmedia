@@ -1,3 +1,4 @@
+import { ChevronLeft, ChevronRight, ImagePlus, Images, Trash2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react'
 import { artworkRepository, errorMessage } from '../storage'
 import { validateArtworkFile } from '../storage/supabaseArtworkRepository'
@@ -61,6 +62,7 @@ function FilePicker({ disabled, label, onPick }: PickerProps) {
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
       >
+        <ImagePlus aria-hidden="true" />
         {label}
       </button>
     </>
@@ -187,7 +189,10 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder, r
       ))}
 
       {artwork.length === 0 && !progress ? (
-        <p className="artwork-empty">No artwork uploaded yet.</p>
+        <p className="artwork-empty">
+          <Images aria-hidden="true" />
+          No artwork uploaded yet.
+        </p>
       ) : (
         <ol className="artwork-grid">
           {artwork.map((asset, index) => (
@@ -217,7 +222,7 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder, r
                     disabled={index === 0 || busyId !== null}
                     onClick={() => void move(index, -1)}
                   >
-                    ‹
+                    <ChevronLeft aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -226,7 +231,7 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder, r
                     disabled={index === artwork.length - 1 || busyId !== null}
                     onClick={() => void move(index, 1)}
                   >
-                    ›
+                    <ChevronRight aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -234,6 +239,7 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder, r
                     disabled={busyId !== null}
                     onClick={() => setPendingRemove(asset)}
                   >
+                    <Trash2 aria-hidden="true" />
                     Remove
                   </button>
                 </div>
@@ -317,7 +323,10 @@ export function StagedArtwork({ format, files, onChange }: StagedArtworkProps) {
         </p>
       ))}
       {files.length === 0 ? (
-        <p className="artwork-empty">No images chosen.</p>
+        <p className="artwork-empty">
+          <Images aria-hidden="true" />
+          No images chosen.
+        </p>
       ) : (
         <ol className="artwork-grid">
           {files.map(({ file, previewUrl }, index) => (
@@ -338,7 +347,7 @@ export function StagedArtwork({ format, files, onChange }: StagedArtworkProps) {
                   disabled={index === 0}
                   onClick={() => move(index, -1)}
                 >
-                  ‹
+                  <ChevronLeft aria-hidden="true" />
                 </button>
                 <button
                   type="button"
@@ -347,13 +356,14 @@ export function StagedArtwork({ format, files, onChange }: StagedArtworkProps) {
                   disabled={index === files.length - 1}
                   onClick={() => move(index, 1)}
                 >
-                  ›
+                  <ChevronRight aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   className="button button-ghost button-small button-danger-text"
                   onClick={() => remove(index)}
                 >
+                  <Trash2 aria-hidden="true" />
                   Remove
                 </button>
               </div>

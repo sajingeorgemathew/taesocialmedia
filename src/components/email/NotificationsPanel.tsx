@@ -1,3 +1,4 @@
+import { Bell, Link } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { formatClock } from '../../email/schedule'
 import type { EmailSettings } from '../../email/types'
@@ -89,6 +90,7 @@ export function NotificationsPanel({ settings, onSaveSettings }: NotificationsPa
       <div className="panel-heading">
         <div>
           <h2 id="email-notifications-title" className="panel-title">
+            <Bell aria-hidden="true" />
             Notification preferences
           </h2>
           <p className="muted small">
@@ -101,16 +103,19 @@ export function NotificationsPanel({ settings, onSaveSettings }: NotificationsPa
       <ul className="email-toggle-list">
         {TOGGLES.map((t) => (
           <li key={t.key}>
-            <label className="checkbox">
-              <input
-                type="checkbox"
-                checked={settings[t.key]}
-                disabled={savingKey === t.key}
-                onChange={(e) => void toggle(t.key, e.target.checked, t.label)}
-              />
-              <span>
+            <label className="toggle-row">
+              <span className="toggle-row-text">
                 <strong>{t.label}</strong>
                 <span className="muted small email-toggle-description">{t.description}</span>
+              </span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={settings[t.key]}
+                  disabled={savingKey === t.key}
+                  onChange={(e) => void toggle(t.key, e.target.checked, t.label)}
+                />
               </span>
             </label>
           </li>
@@ -138,7 +143,10 @@ export function NotificationsPanel({ settings, onSaveSettings }: NotificationsPa
         </button>
       </form>
 
-      <h3 className="email-subheading">Application link</h3>
+      <h3 className="email-subheading">
+        <Link aria-hidden="true" />
+        Application link
+      </h3>
       <form className="email-inline-form" onSubmit={(e) => void saveUrl(e)} noValidate>
         <label className="field email-url-field">
           <span>Deployed app URL</span>

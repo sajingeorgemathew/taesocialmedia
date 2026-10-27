@@ -1,4 +1,6 @@
+import { CircleAlert, History, MailX, RefreshCw } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { EmptyState } from '../ui/EmptyState'
 import { listDeliveryLogs } from '../../email/emailRepository'
 import { formatTorontoDateTime } from '../../email/schedule'
 import type { DeliveryKind, DeliveryLog, DeliveryStatus } from '../../email/types'
@@ -69,7 +71,8 @@ export function DeliveryHistory({ onNotify }: { onNotify: Notify }) {
       <div className="panel-heading email-history-heading">
         <div>
           <h2 id="email-history-title" className="panel-title">
-            Email history
+            <History aria-hidden="true" />
+            Delivery history
           </h2>
           <p className="muted small">Latest 100 deliveries. Times are Toronto time.</p>
         </div>
@@ -85,7 +88,8 @@ export function DeliveryHistory({ onNotify }: { onNotify: Notify }) {
               <option value="skipped">Skipped</option>
             </select>
           </label>
-          <button type="button" className="button button-ghost button-small" disabled={loading} onClick={() => void refresh()}>
+          <button type="button" className="button button-secondary button-small" disabled={loading} onClick={() => void refresh()}>
+            <RefreshCw aria-hidden="true" className={loading ? 'spin' : undefined} />
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
@@ -93,12 +97,13 @@ export function DeliveryHistory({ onNotify }: { onNotify: Notify }) {
 
       {error && (
         <p className="alert" role="alert">
+          <CircleAlert aria-hidden="true" />
           {error}
         </p>
       )}
 
       {logs && shown.length === 0 && !error && (
-        <p className="empty-state">{logs.length === 0 ? 'No emails have been sent yet.' : 'No emails match this filter.'}</p>
+        <EmptyState icon={MailX}>{logs.length === 0 ? 'No emails have been sent yet.' : 'No emails match this filter.'}</EmptyState>
       )}
 
       {shown.length > 0 && (
@@ -107,7 +112,7 @@ export function DeliveryHistory({ onNotify }: { onNotify: Notify }) {
             <li key={log.id} className="history-item">
               <div className="history-when">
                 <span>{formatTorontoDateTime(log.sentAt ?? log.createdAt)}</span>
-                <span className="pill">{KIND_LABEL[log.kind]}</span>
+                <span className={`pill kind-${log.kind}`}>{KIND_LABEL[log.kind]}</span>
               </div>
               <div className="history-main">
                 <span className="email-address">{log.recipientEmail}</span>
