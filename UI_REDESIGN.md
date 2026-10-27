@@ -104,27 +104,85 @@ system font, no icons, no component library. The redesign replaces them with
 
 ## 3. Functionality-preservation checklist
 
-Filled in during Phase E — see "Regression results" below.
+Verified on `feature/modern-saas-ui` with `npm run dev:mock` (local demo data,
+no Supabase or Resend calls) in Chrome at desktop (1568 px), tablet (820 px)
+and phone (390 px) widths, plus automated tests. **Mock** = verified against
+the local mock backend, which mirrors the database rules but is not the real
+database; the database rules themselves are unchanged and were verified in
+Feature 4 (`supabase/tests/*.sql`).
 
 | # | Check | Result |
 | --- | --- | --- |
-| 1 | Office admin can sign in | |
-| 2 | Designer can sign in | |
-| 3 | Calendar loads existing posts | |
-| 4 | Create, edit, duplicate, delete (admin) | |
-| 5 | Month navigation, Today, filters, clear filters, ordering | |
-| 6 | Designer selection and reassignment (admin) | |
-| 7 | Designers edit content and artwork on any unfinished post | |
-| 8 | Designers cannot change protected scheduling fields | |
-| 9 | Designers cannot approve, publish, delete or reassign | |
-| 10 | Artwork upload, removal, ordering | |
-| 11 | Ready for Review submission | |
-| 12 | Admin approval | |
-| 13 | Request changes keeps revision notes | |
-| 14 | Approved / Published locked for designers | |
-| 15 | Post data and published history unchanged | |
-| 16 | Email Reminders settings and Delivery History | |
-| 17 | Email templates keep all dynamic content | |
-| 18 | Mobile and desktop | |
-| 19 | Keyboard and accessibility | |
-| 20 | No new console errors | |
+| 1 | Office admin can sign in | Pass (mock sign-in form; wrong password shows the error) |
+| 2 | Designer can sign in | Pass (mock); disabled account sees "Access not granted" |
+| 3 | Calendar loads existing posts | Pass (mock) |
+| 4 | Create, edit, duplicate, delete (admin) | Pass (mock): create with validation, duplicate opens the copy, delete via confirm dialog |
+| 5 | Month navigation, Today, filters, clear filters, ordering | Pass (mock + unit test for date order) |
+| 6 | Designer selection and reassignment (admin) | Pass (mock); dropdown offers only active designers (unit test) |
+| 7 | Designers edit content and artwork on any unfinished post | Pass (mock + unit test on another designer's post) |
+| 8 | Designers cannot change protected scheduling fields | Pass (unit test: read-only/disabled) |
+| 9 | Designers cannot approve, publish, delete or reassign | Pass (unit tests + mock UI: no controls) |
+| 10 | Artwork upload, removal, ordering | Pass (mock: upload, reorder, remove with confirm) |
+| 11 | Ready for Review submission | Pass (mock: designer resubmits, change request clears) |
+| 12 | Admin approval | Pass (unit test); single click as before |
+| 13 | Request changes keeps revision notes | Pass (mock + unit test: note required, shown to designer) |
+| 14 | Approved / Published locked for designers | Pass (mock + unit tests) |
+| 15 | Post data and published history unchanged | No data model, query or repository changes (`git diff main` — see below). **Unverified against production data** (not touched by design). |
+| 16 | Email Reminders settings and Delivery History | Pass (mock: toggles, test send, history refresh) |
+| 17 | Email templates keep all dynamic content | Pass: subjects and plain-text bodies identical to `main` for the same input; 7 template tests |
+| 18 | Mobile and desktop | Pass (sidebar drawer, phone calendar dots, bottom-sheet dialogs) |
+| 19 | Keyboard and accessibility | Pass: focus rings, labelled icon buttons, dialogs keep focus handling, switches stay native checkboxes |
+| 20 | No new console errors | Pass, with one dev-only React warning that also exists on `main` (see limitations) |
+
+### Automated results
+
+- `npm run lint` — clean
+- `npm run build` — passes (existing >500 kB chunk warning remains)
+- `npm test` — 16 / 16 (permissions, post editor admin/designer, post list, app navigation)
+- `npm run test:email` — 22 / 22 (15 routing + 7 template)
+
+### Git diff outside the presentation layer
+
+`git diff main -- supabase/migrations supabase/functions src/hooks src/storage src/email src/auth/AuthProvider.tsx src/auth/authContext.ts src/team src/lib src/utils/permissions.ts src/utils/posts.ts`
+shows only `supabase/functions/_shared/layout.ts` and the inline styles in
+`_shared/emails.ts` (email presentation). `src/types.ts` gains the `overview`
+view name; `App.tsx` adds the sidebar/collapse state and the dashboard view
+around unchanged handlers.
+
+## 4. Remaining issues and limitations
+
+- **Approve has no confirmation dialog** (unchanged single click).
+- **Dashboard is the admin landing page** (was Calendar). Designers still land
+  on My Assignments. Saving a post still selects its date/month in the calendar.
+- **Email logo** requires the frontend deploy (the file must exist at
+  `<App URL>/logo_final_T.png`) and the *Application link* in Email Reminders to
+  be set to `https://taesocialmedia.vercel.app`. Without it, emails use a text
+  mark and no button — same as before. Some clients hide remote images until
+  allowed.
+- **Pre-existing:** React warns about duplicate keys when Duplicate opens the
+  copy, because the editor and toast both use `Date.now()` keys (`main` too).
+  Harmless; not changed to keep App logic frozen.
+- **Pre-existing:** Escape does not close a dialog if focus left it (e.g.
+  after an artwork button disables itself).
+- The bundle grew ~40 kB (icons, font CSS); Inter font files load on demand.
+
+## 5. Safe deployment
+
+1. Review the branch; run `npm ci && npm run lint && npm test && npm run test:email && npm run build`.
+2. Optional: `npm run dev:mock` (open `/?as=admin` or `/?as=designer`) and
+   `npm run email:preview` (open `dev/email-preview/index.html`).
+3. Push the branch, open a PR, check the Vercel **preview** with real sign-in
+   (read-only browsing is enough; no data changes needed).
+4. Merge → Vercel deploys the frontend. Confirm
+   `https://taesocialmedia.vercel.app/logo_final_T.png` loads.
+5. In Email Reminders → Application link, make sure it is
+   `https://taesocialmedia.vercel.app` (admin setting, existing field).
+6. Deploy the two Edge Functions **only after step 4** (presentation change;
+   no schema, Cron or secret changes):
+   `npx supabase functions deploy email-dispatch --project-ref cbkhuzoevsmhnjalivtd --no-verify-jwt --use-api`
+   `npx supabase functions deploy email-send-test --project-ref cbkhuzoevsmhnjalivtd --no-verify-jwt --use-api`
+7. Send one test email from Email Reminders to the office address and check
+   the logo and button render; watch Delivery history.
+
+Rollback: revert the merge in Vercel (instant), and redeploy the functions from
+`main`'s previous commit if the email look must be reverted.

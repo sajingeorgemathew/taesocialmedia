@@ -593,6 +593,14 @@ are frozen. Full plan, audit and preservation checklist:
 9. **Tests** — Vitest + Testing Library for permission-sensitive UI; email
    template content tests; `npm run dev:mock` local preview with demo data.
 
+## Local preview and tests
+
+- `npm run dev:mock` — the app with demo data at http://localhost:5180
+  (`/?as=admin`, `/?as=designer`, `/?as=none`, `/?reset`). Never contacts
+  Supabase or Resend; production keys are not loaded.
+- `npm run email:preview` — renders every email to `dev/email-preview/`.
+- `npm test` — frontend tests; `npm run test:email` — email routing/templates.
+
 ## Out of scope
 
 Schema, migrations, RLS, Edge Function behaviour (routing, queue, retries,
