@@ -98,7 +98,8 @@ Check the result:
 | anything, as anonymous (`anon`) | ✗ | ✗ | ✗ | ✗ |
 
 > **Feature 4:** posts, artwork and storage writes are now split between
-> admins and designers (designers: own posts only, no create/delete/approve).
+> admins and designers (designers: any unfinished post's content and artwork;
+> no create/delete/approve/publish/assign).
 > See [DESIGNER_SETUP.md](DESIGNER_SETUP.md) and README → Feature 4.
 
 Server-side triggers also keep `version`, `updated_at`, `updated_by`,

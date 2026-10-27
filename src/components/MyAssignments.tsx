@@ -1,6 +1,5 @@
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
-import { DESIGNER_STATUSES } from '../utils/permissions'
 import { isOverdue, sortByDate } from '../utils/posts'
 import { StatusBadge } from './StatusBadge'
 
@@ -10,7 +9,6 @@ interface MyAssignmentsProps {
   today: string
   onOpen: (post: SocialPost) => void
   onStatusChange: (post: SocialPost, status: PostStatus) => void
-  onTakeOver: (post: SocialPost) => void
 }
 
 interface Section {
@@ -18,7 +16,6 @@ interface Section {
   description: string
   posts: SocialPost[]
   tone?: 'danger'
-  open?: boolean
 }
 
 /** The next step a designer takes on their own post. */
@@ -30,8 +27,12 @@ function primaryAction(post: SocialPost): { label: string; status: PostStatus } 
   return null
 }
 
-/** A designer's own work, grouped by what needs doing, plus unassigned work they can take over. */
-export function MyAssignments({ posts, userId, today, onOpen, onStatusChange, onTakeOver }: MyAssignmentsProps) {
+/**
+ * Posts where the signed-in designer is the primary designer, grouped by what
+ * needs doing. A filter only: every unfinished post can be edited from the
+ * calendar and lists too.
+ */
+export function MyAssignments({ posts, userId, today, onOpen, onStatusChange }: MyAssignmentsProps) {
   const mine = sortByDate(posts.filter((p) => p.designerId === userId && p.status !== 'Published'))
   const sections: Section[] = [
     {
@@ -52,22 +53,18 @@ export function MyAssignments({ posts, userId, today, onOpen, onStatusChange, on
     },
     {
       title: 'Approved',
-      description: 'Approved and scheduled to publish. Locked for editing.',
+      description: 'Approved and scheduled to publish. Read-only unless the office reopens it.',
       posts: mine.filter((p) => p.status === 'Approved'),
-    },
-    {
-      title: 'Open work',
-      description: 'Unassigned posts anyone can take over.',
-      posts: sortByDate(posts.filter((p) => p.designerId === null && DESIGNER_STATUSES.includes(p.status))),
-      open: true,
     },
   ]
 
   return (
     <div className="my-assignments">
-      {mine.length === 0 && (
-        <p className="empty-state">Nothing is assigned to you right now.</p>
-      )}
+      <p className="muted small">
+        Posts where you are the primary designer. You can also help on any unfinished post from the Calendar or All
+        Posts.
+      </p>
+      {mine.length === 0 && <p className="empty-state">Nothing is assigned to you right now.</p>}
       {sections
         .filter((s) => s.posts.length > 0)
         .map((section) => (
@@ -78,7 +75,7 @@ export function MyAssignments({ posts, userId, today, onOpen, onStatusChange, on
             <p className="muted small assignment-description">{section.description}</p>
             <ol className="queue-list">
               {section.posts.map((post) => {
-                const action = section.open ? null : primaryAction(post)
+                const action = primaryAction(post)
                 const overdue = isOverdue(post, today)
                 return (
                   <li key={post.id} className="queue-item">
@@ -97,20 +94,14 @@ export function MyAssignments({ posts, userId, today, onOpen, onStatusChange, on
                     </button>
                     <div className="queue-actions">
                       <StatusBadge status={post.status} />
-                      {section.open ? (
-                        <button type="button" className="button button-secondary button-small" onClick={() => onTakeOver(post)}>
-                          Take over
+                      {action && (
+                        <button
+                          type="button"
+                          className="button button-primary button-small"
+                          onClick={() => onStatusChange(post, action.status)}
+                        >
+                          {action.label}
                         </button>
-                      ) : (
-                        action && (
-                          <button
-                            type="button"
-                            className="button button-primary button-small"
-                            onClick={() => onStatusChange(post, action.status)}
-                          >
-                            {action.label}
-                          </button>
-                        )
                       )}
                     </div>
                   </li>

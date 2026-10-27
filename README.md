@@ -476,15 +476,20 @@ Setup, migration order and the manual QA checklist: **DESIGNER_SETUP.md**.
 
 | | Admin | Designer |
 | --- | --- | --- |
-| See the calendar, all posts and artwork | ✓ | ✓ (open space) |
+| See the calendar, all posts and artwork | ✓ | ✓ |
 | Create, duplicate, delete posts | ✓ | ✗ |
 | Edit title, date, program, platforms, format, published link | ✓ | ✗ |
-| Edit caption, creative wording, design brief, reel script, notes, artwork link | ✓ | own posts, until approved |
-| Upload / reorder / remove artwork | ✓ | own posts, until approved |
-| Move status Planned ↔ In Design ↔ Ready for Review | ✓ | own posts |
+| Edit caption, creative wording, design brief, reel script, notes, artwork link | ✓ | **any** unfinished post |
+| Upload / reorder / remove artwork | ✓ | **any** unfinished post |
+| Move status Planned ↔ In Design ↔ Ready for Review (submit / resubmit) | ✓ | **any** unfinished post |
 | Approve, publish, request changes | ✓ | ✗ |
-| Assign / reassign / unassign | ✓ | may only **take over an unassigned** post |
+| Assign / reassign / unassign (incl. self-assign) | ✓ | ✗ |
+| Edit Approved or Published posts | ✓ (and can reopen them) | ✗ — read-only until an admin reopens |
 | Team accounts, email administration, import | ✓ | ✗ |
+
+Designers collaborate: the assigned designer is the **primary
+responsibility**, not exclusive edit access. "Unfinished" means Planned, In
+Design or Ready for Review.
 
 - Existing `member` accounts become `designer`.
 - `team_members.active = false` disables an account everywhere (sign-in shows
@@ -508,8 +513,11 @@ Setup, migration order and the manual QA checklist: **DESIGNER_SETUP.md**.
   reported, never guessed, and flagged in the app ("not linked") for an admin
   to assign. Published posts are left untouched. Re-run with
   `select * from public.link_legacy_designers();`.
-- Designers get a **My Assignments** view: Changes requested, To do, Waiting for
-  review, Approved, and unassigned Open work they can take over.
+- The office assigns the **primary designer**; other designers contribute
+  without changing it. Designers cannot assign anyone, including themselves.
+- Designers get a **My Assignments** filter (Changes requested, To do, Waiting
+  for review, Approved). Every unfinished post stays editable from the
+  calendar and lists.
 
 ## 3. Review workflow
 
@@ -524,10 +532,10 @@ Setup, migration order and the manual QA checklist: **DESIGNER_SETUP.md**.
 
 | Event | Recipients |
 | --- | --- |
-| Assigned / reassigned | The designer's **account email**, plus a copy to recipients with *Assignments* ticked. Only when the assigned account actually changes; a designer taking over a post is not emailed about it. |
-| Ready for Review | Recipients with *Workflow* ticked (unchanged) |
-| Approved | Recipients with *Workflow* ticked + the assigned designer |
-| Changes requested (new toggle, on by default) | The assigned designer |
+| Assigned / reassigned | The new primary designer's **account email**, plus a copy to recipients with *Assignments* ticked. Only when the assigned account actually changes. |
+| Ready for Review (submitted by any designer) | Recipients with *Workflow* ticked (unchanged) |
+| Approved | Recipients with *Workflow* ticked + the primary designer |
+| Changes requested (new toggle, on by default) | The primary designer; if the post has no (active) primary designer, recipients with *Assignments* ticked |
 
 Same queue, 2-minute grouping, 5-minute Cron, dedupe keys, Resend idempotency,
 retries and delivery log as Feature 3. Designer addresses are delivered only
@@ -541,8 +549,9 @@ while the account is active.
 
 ## Acceptance Criteria
 
-- Designers cannot approve, publish, create, delete, reassign, or edit other
-  designers' posts — including through direct API calls
+- Designers can edit and submit any unfinished post, but cannot approve,
+  publish, create, delete, assign, change scheduling fields or edit
+  Approved/Published posts — including through direct API calls
   (`supabase/tests/verify_designer_rls.sql`)
 - Existing posts, published history, email settings and schedules are kept
 - Assignment, approval and change-request emails reach the right addresses

@@ -11,19 +11,13 @@ export function isAdmin(member: TeamMember): boolean {
   return member.role === 'admin'
 }
 
-export function isAssignedTo(member: TeamMember, post: SocialPost): boolean {
-  return post.designerId !== null && post.designerId === member.userId
-}
-
-/** Admins edit everything; designers edit their own posts until approval. */
+/**
+ * Admins edit everything. Designers collaborate on every unfinished post —
+ * the assigned designer is the primary responsibility, not exclusive access.
+ * Approved and Published posts are read-only until an admin reopens them.
+ */
 export function canEditPost(member: TeamMember, post: SocialPost): boolean {
-  if (isAdmin(member)) return true
-  return isAssignedTo(member, post) && DESIGNER_STATUSES.includes(post.status)
-}
-
-/** A designer may take over an unassigned post that is not yet approved. */
-export function canTakeOver(member: TeamMember, post: SocialPost): boolean {
-  return !isAdmin(member) && post.designerId === null && DESIGNER_STATUSES.includes(post.status)
+  return isAdmin(member) || DESIGNER_STATUSES.includes(post.status)
 }
 
 /** Statuses this person may move the post to (always includes the current one). */

@@ -5,8 +5,31 @@ project. Do the steps **in order**. Nothing here touches the Cron job, Vault
 secrets, the Resend key, auth settings or other TAE projects.
 
 **You will need:** Supabase dashboard (admin), the project ref, Node.js (for
-`npx supabase`), an app login with the `admin` role, and a test designer
-account (step 6).
+`npx supabase`), an app login with the `admin` role, and **two** test
+designer accounts (step 6).
+
+## Permissions at a glance
+
+Designers **collaborate**: every active designer can work on every unfinished
+post (Planned, In Design, Ready for Review). The assigned designer is the
+**primary responsibility** — who gets assignment, approval and revision
+emails — not exclusive edit access.
+
+| | Admin (office) | Designer |
+| --- | --- | --- |
+| View every post | ✓ | ✓ |
+| Caption, creative wording, brief, reel script, notes, artwork link | ✓ | any unfinished post |
+| Upload / reorder / remove artwork | ✓ | any unfinished post |
+| Planned ↔ In Design ↔ Ready for Review (submit / resubmit) | ✓ | any unfinished post |
+| Approve, request changes, publish | ✓ | ✗ |
+| Title, date, program, platforms, format, published link | ✓ | ✗ |
+| Assign / reassign / unassign / self-assign | ✓ | ✗ |
+| Create, duplicate, delete posts | ✓ | ✗ |
+| Approved / Published posts | ✓ (can reopen by moving back to In Design) | read-only |
+| Team, roles, email settings, recipients | ✓ | ✗ |
+
+All of this is enforced in the database (RLS + the `posts_workflow_rules`
+trigger), not only by hidden buttons.
 
 | Order | What | Why the order matters |
 | --- | --- | --- |
@@ -41,8 +64,9 @@ account (step 6).
 1. Review
    [`supabase/migrations/20261027000001_designer_roles.sql`](supabase/migrations/20261027000001_designer_roles.sql).
    It only **adds**: the `designer` role and `active` flag, `posts.designer_id`
-   and review columns, the `posts_workflow_rules` trigger, new RLS policies
-   for posts/artwork/storage, `request_post_changes()`,
+   (primary designer) and review columns, the `posts_workflow_rules` trigger
+   (column and status rules for designers), new RLS policies for
+   posts/artwork/storage, `request_post_changes()`,
    `link_legacy_designers()`, the `changes_requested` notification type and
    the `notify_changes_requested` setting (on). Existing data is kept.
 2. **SQL Editor → New query**, paste the **whole file**, **Run**.
@@ -64,11 +88,12 @@ Paste and run each in the SQL Editor; expect only `PASS` lines:
 | --- | --- |
 | [`supabase/tests/verify_rls.sql`](supabase/tests/verify_rls.sql) | Feature 2: anonymous / non-member access (9) |
 | [`supabase/tests/verify_email_rls.sql`](supabase/tests/verify_email_rls.sql) | Feature 3: email tables admin-only (16, or a `SKIP` if no designer exists yet) |
-| [`supabase/tests/verify_designer_rls.sql`](supabase/tests/verify_designer_rls.sql) | Feature 4: designer vs admin, direct API calls, notification events (34; some `SKIP` if a notification type is off or reminders are paused) |
+| [`supabase/tests/verify_designer_rls.sql`](supabase/tests/verify_designer_rls.sql) | Feature 4: one admin + designers A and B — cross-designer editing, protected fields, assignments, approval/publish/delete denial, Approved/Published lock, reopen, notification events, through the same API role the app uses (39; some `SKIP` if a notification type is off or reminders are paused) |
 
-`verify_designer_rls.sql` creates temporary designer accounts and posts inside
-a transaction and rolls everything back: no accounts or posts remain and no
-email is sent. Any `FAIL` stops the script — report it before continuing.
+`verify_designer_rls.sql` creates two temporary designer accounts (and a
+disabled one) plus temporary posts inside a transaction and rolls everything
+back: no accounts or posts remain and no email is sent. Any `FAIL` stops the
+script — report it before continuing.
 
 ## Step 4 — Redeploy the Edge Functions
 
@@ -137,9 +162,10 @@ redeploy the previous Edge Functions, and deploy the previous frontend.
 
 ## Manual QA checklist
 
-Use the office admin account, a test designer **A** and a second test designer
-**B**. Watch **Email Reminders → Delivery history**; workflow emails arrive in
-about 2–7 minutes.
+Use the office admin account and two test designers, **A** and **B**. Create
+three test posts as admin: one with primary designer A, one with B, one
+unassigned. Watch **Email Reminders → Delivery history**; workflow emails
+arrive in about 2–7 minutes.
 
 **Migration and compatibility**
 - [ ] Existing posts, dates, captions, artwork and published history unchanged.
@@ -149,27 +175,33 @@ about 2–7 minutes.
 
 **Admin**
 - [ ] Can create, edit, duplicate and delete posts; "+ Add Post" visible.
-- [ ] Designer dropdown lists only active designers; can assign, reassign and unassign.
+- [ ] *Primary designer* dropdown lists only active designers; can assign, reassign and unassign.
 - [ ] Assigning A emails **A's account address** (plus a copy to *Assignments* recipients). Saving again without changing the designer sends nothing.
-- [ ] Reassigning A → B emails **B**.
-- [ ] On a Ready for Review post: **Approve** → Approved; Workflow recipients **and** the designer are emailed.
-- [ ] **Request changes** requires a note → post back to In Design with the note; the designer is emailed with the note.
+- [ ] Reassigning A → B emails **B** only (plus the copy).
+- [ ] On a Ready for Review post: **Approve** → Approved; Workflow recipients **and the primary designer** are emailed.
+- [ ] **Request changes** requires a note → post back to In Design; the **primary designer** is emailed with the note. On an unassigned post the email goes to *Assignments* recipients.
+- [ ] Can reopen an Approved post (move it back to In Design); designers can edit it again.
 
-**Designer A**
-- [ ] Opens on **My Assignments**; sees the whole calendar; no "+ Add Post", Duplicate, Delete, Email Reminders or Import.
-- [ ] Own post: can edit caption, wording, brief, reel script, notes, artwork link; upload/reorder/remove artwork.
-- [ ] Own post: title, date, program, platforms, format and published link are read-only.
+**Designers A and B (repeat the key steps as each)**
+- [ ] No "+ Add Post", Duplicate, Delete, Email Reminders, Import, Approve or Request changes anywhere.
+- [ ] A opens **B's** In Design post and edits caption, creative wording, brief, notes, artwork link → saves. B does the same on **A's** post.
+- [ ] Both can upload, reorder and remove artwork on each other's unfinished posts and on the unassigned post.
+- [ ] Title, date, program, platforms, format and published link are read-only for both.
+- [ ] *Primary designer* is shown as text ("any designer can contribute; only the office assigns") — no way to change it, including on the unassigned post.
 - [ ] Status controls offer only Planned / In Design / Ready for Review.
-- [ ] **Submit for review** → office/Workflow recipients emailed; A is not.
-- [ ] "Changes requested" section shows the note; **Resubmit for review** clears it.
-- [ ] Approved own post is view-only.
-- [ ] B's post is view-only ("View only — assigned to B"), no artwork controls.
-- [ ] Unassigned post: **Take over** assigns it to A (office copy only; A not emailed).
+- [ ] A submits **B's** post for review → Workflow recipients emailed; the primary designer (B) is **not** emailed for the submission.
+- [ ] After **Request changes**, the post shows the note in the editor and in the primary designer's *My Assignments → Changes requested*; either designer can resubmit, which clears it.
+- [ ] Approved and Published posts open with "Read-only — Approved/Published"; no Save button, no artwork controls; status select disabled in lists.
+- [ ] *My Assignments* shows only the signed-in designer's primary posts; Calendar and All Posts still open every post for editing.
 
-**Direct API (optional, browser devtools as A)**
-- [ ] `supabase.from('posts').update({status:'Approved'}).eq('id', <A's post>)` → error.
-- [ ] `supabase.from('posts').update({caption:'x'}).eq('id', <B's post>)` → no rows changed.
-- [ ] `supabase.from('posts').delete().eq('id', <A's post>)` → no rows deleted.
+**Direct API (browser devtools, signed in as A)**
+- [ ] `supabase.from('posts').update({caption:'x'}).eq('id', <B's In Design post>)` → succeeds (collaboration).
+- [ ] `…update({status:'Approved'})` / `…update({status:'Published'})` → error.
+- [ ] `…update({designer_id: <A's user id>})` on B's or the unassigned post → error.
+- [ ] `…update({publish_date:'2030-01-01'})` → error.
+- [ ] `…update({notes:'x'})` on an Approved post → error.
+- [ ] `supabase.from('posts').delete().eq('id', <any post>)` → no rows deleted.
+- [ ] `supabase.rpc('request_post_changes', {p_post_id: <id>, p_note: 'x'})` → error.
 
 **Disabled account**
 - [ ] Set A `active = false` → A sees "Access not granted"; A no longer receives designer emails. Re-enable afterwards.

@@ -53,14 +53,38 @@ test('assignment goes to the designer account email plus Assignments copies', ()
   assert.equal(routes.find((r) => r.recipient.email === 'anna@example.com')?.recipient.id, null)
 })
 
-test('a designer taking over a post is not emailed about it', () => {
+test('nobody is emailed about their own action on a post assigned to them', () => {
   const routes = routeNotifications([item('assignment', post(), { designer_id: ANNA }, ANNA)], recipients, members)
   assert.deepEqual(emailsOf(routes), ['office@torontoacademy.ca'])
 })
 
-test('inactive designer accounts are never emailed', () => {
+test('reassignment emails the new designer, not the previous one', () => {
+  const routes = routeNotifications(
+    [item('assignment', post({ designer_id: ANNA }), { designer_id: ANNA, previous_designer_id: BEN })],
+    recipients,
+    [...members, { user_id: BEN, email: 'ben@example.com', active: true }],
+  )
+  assert.deepEqual(emailsOf(routes), ['anna@example.com', 'office@torontoacademy.ca'])
+})
+
+test('inactive designer accounts are never emailed; changes go to the fallback', () => {
   const routes = routeNotifications([item('changes_requested', post({ designer_id: BEN }))], recipients, members)
-  assert.deepEqual(routes, [])
+  assert.deepEqual(emailsOf(routes), ['office@torontoacademy.ca'])
+})
+
+test('changes requested on an unassigned post goes to the Assignments fallback', () => {
+  const routes = routeNotifications([item('changes_requested', post({ designer_id: null, designer: '' }))], recipients, members)
+  assert.deepEqual(emailsOf(routes), ['office@torontoacademy.ca'])
+})
+
+test('approval of an unassigned post goes to Workflow recipients only', () => {
+  const routes = routeNotifications([item('approved', post({ designer_id: null, status: 'Approved' }))], recipients, members)
+  assert.deepEqual(emailsOf(routes), ['office@torontoacademy.ca', 'owner@example.com'])
+})
+
+test('a post submitted by a contributing designer notifies the office, not the primary designer', () => {
+  const routes = routeNotifications([item('ready_for_review', post({ status: 'Ready for Review' }), {}, BEN)], recipients, members)
+  assert.deepEqual(emailsOf(routes), ['office@torontoacademy.ca', 'owner@example.com'])
 })
 
 test('ready for review goes to Workflow recipients only, not the designer', () => {

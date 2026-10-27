@@ -22,6 +22,7 @@ export function StatusSelect({ status, onChange, label = 'Change status', option
       value={status}
       aria-label={label}
       disabled={choices.length <= 1}
+      title={choices.length <= 1 ? 'Read-only — only an administrator can change this status' : undefined}
       onChange={(e) => onChange(e.target.value as PostStatus)}
       onClick={(e) => e.stopPropagation()}
     >

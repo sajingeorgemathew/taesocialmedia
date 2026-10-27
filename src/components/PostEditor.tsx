@@ -13,7 +13,7 @@ import {
   type SocialPost,
 } from '../types'
 import { isValidDateKey } from '../utils/date'
-import { canEditPost, canReview, canTakeOver, isAdmin, statusOptions } from '../utils/permissions'
+import { canEditPost, canReview, isAdmin, statusOptions } from '../utils/permissions'
 import { designerLabel, statusSlug } from '../utils/posts'
 import { SavedArtwork, StagedArtwork, type StagedFile } from './ArtworkUploader'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -52,8 +52,6 @@ interface PostEditorProps {
   member: TeamMember
   /** All team accounts, for the designer dropdown and names. */
   team: TeamAccount[]
-  /** Designers: assign this unassigned post to yourself. */
-  onTakeOver?: (post: SocialPost) => void
   /** Admins: approve or send back a post waiting for review. */
   review?: ReviewHandlers
 }
@@ -173,12 +171,11 @@ export function PostEditor({
   artwork,
   member,
   team,
-  onTakeOver,
   review,
 }: PostEditorProps) {
   const [draft, setDraft] = useState<PostDraft>(initialDraft)
   const admin = isAdmin(member)
-  // View only: someone else's post, or the designer's own post after approval.
+  // Designers: Approved and Published posts are read-only until an admin reopens them.
   const readOnly = post ? !canEditPost(member, post) : false
   // Scheduling fields are managed by admins.
   const locked = readOnly || !admin
@@ -186,7 +183,6 @@ export function PostEditor({
   const designerChoices = team.filter(
     (a) => (a.role === 'designer' && a.active) || a.userId === draft.designerId,
   )
-  const takeOver = post && onTakeOver && canTakeOver(member, post) ? () => onTakeOver(post) : undefined
   const [errors, setErrors] = useState<Errors>({})
   const [saving, setSaving] = useState(false)
   const [confirmDiscard, setConfirmDiscard] = useState(false)
@@ -278,11 +274,6 @@ export function PostEditor({
             <button type="button" className="button button-ghost" onClick={requestClose}>
               {readOnly ? 'Close' : 'Cancel'}
             </button>
-            {takeOver && (
-              <button type="button" className="button button-primary" onClick={takeOver}>
-                Take over this post
-              </button>
-            )}
             {!readOnly && (
               <button
                 type="submit"
@@ -332,11 +323,8 @@ export function PostEditor({
 
           {post && readOnly && (
             <div className="readonly-notice field-full" role="note">
-              {takeOver
-                ? 'This post is unassigned. Take it over to work on it.'
-                : post.designerId === member.userId
-                  ? `This post is ${post.status}. Only an administrator can change it now.`
-                  : `View only — assigned to ${designerLabel(post)}.`}
+              <strong>Read-only — {post.status}.</strong> Only an administrator can change this post. To make further
+              changes, ask an administrator to reopen it (move it back to In Design).
             </div>
           )}
           {post?.changesRequestedAt && (
@@ -510,7 +498,7 @@ export function PostEditor({
 
           {admin ? (
             <label className="field">
-              <span>Assigned designer</span>
+              <span>Primary designer</span>
               <select value={draft.designerId ?? ''} onChange={(e) => set('designerId', e.target.value || null)}>
                 <option value="">Unassigned</option>
                 {designerChoices.map((a) => (
@@ -531,8 +519,11 @@ export function PostEditor({
             </label>
           ) : (
             <div className="field">
-              <span>Assigned designer</span>
-              <p className="field-static">{post ? designerLabel(post) : 'Unassigned'}</p>
+              <span>Primary designer</span>
+              <p className="field-static">
+                {post ? designerLabel(post) : 'Unassigned'}
+                {!readOnly && <span className="muted small"> · any designer can contribute; only the office assigns</span>}
+              </p>
             </div>
           )}
 

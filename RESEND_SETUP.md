@@ -64,7 +64,7 @@ Email Reminders page (admin) ──user JWT──► email-send-test (admin chec
   | Ready for Review / deadline reminders | Active recipients with **Workflow** ticked |
   | Approved | **Workflow** recipients + the assigned designer's account email |
   | Assignment | The assigned designer's **account email** (Feature 4), plus a copy to recipients with **Assignments** ticked. Addresses are never guessed from names. |
-  | Changes requested | The assigned designer's account email |
+  | Changes requested | The primary designer's account email; recipients with **Assignments** ticked when the post has no primary designer |
 
   Since Feature 4, designers are team accounts; see [DESIGNER_SETUP.md](DESIGNER_SETUP.md).
 

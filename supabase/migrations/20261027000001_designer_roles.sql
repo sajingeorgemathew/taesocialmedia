@@ -10,11 +10,13 @@
 --
 -- Roles after this migration:
 --   admin    — everything (posts, approval, publishing, deletion, team, email).
---   designer — sees the calendar; edits the content and artwork of posts
---              assigned to them; may take over an UNASSIGNED post; may move
---              their posts between Planned, In Design and Ready for Review.
---              Cannot create, delete, approve, publish, reassign, manage the
---              team or open email administration.
+--   designer — collaborative: sees every post and edits the content and
+--              artwork of ANY unfinished post (Planned / In Design / Ready
+--              for Review), moving it between those statuses. The assigned
+--              designer is the primary responsibility, not exclusive access.
+--              Cannot create, duplicate, delete, approve, request changes,
+--              publish, change scheduling fields, (re)assign, edit Approved
+--              or Published posts, manage the team or open email administration.
 -- Existing 'member' accounts become 'designer'.
 -- =============================================================================
 
@@ -106,7 +108,7 @@ alter table public.posts
 create index if not exists posts_designer_idx on public.posts (designer_id) where designer_id is not null;
 
 comment on column public.posts.designer is 'Display name of the assigned designer (maintained by trigger), or a legacy name when designer_id is null.';
-comment on column public.posts.designer_id is 'Assigned designer account. Only admins can change it; a designer may take over an unassigned post.';
+comment on column public.posts.designer_id is 'Primary designer (responsibility, not exclusive access). Only admins can change it.';
 comment on column public.posts.review_note is 'Latest feedback from "Request changes".';
 comment on column public.posts.changes_requested_at is 'Set by request_post_changes(); cleared when the post is resubmitted, approved or published.';
 
@@ -154,16 +156,12 @@ begin
     if tg_op = 'INSERT' then
       raise exception 'Only administrators can create posts.' using errcode = 'insufficient_privilege';
     end if;
-    if old.designer_id is distinct from uid then
-      -- Taking over is allowed only for an unassigned post, and only to yourself.
-      if old.designer_id is not null or new.designer_id is distinct from uid then
-        raise exception 'You can only edit posts assigned to you.';
-      end if;
-    elsif new.designer_id is distinct from old.designer_id then
-      raise exception 'Only administrators can change assignments.';
+    -- Any unfinished post may be edited; the assignment itself is admin-only.
+    if new.designer_id is distinct from old.designer_id then
+      raise exception 'Only administrators can assign designers.';
     end if;
     if old.status in ('Approved', 'Published') then
-      raise exception 'This post is % — only an administrator can change it.', old.status;
+      raise exception 'This post is % and read-only. An administrator can reopen it.', old.status;
     end if;
     if new.status not in ('Planned', 'In Design', 'Ready for Review') then
       raise exception 'Only administrators can approve or publish posts.';
@@ -177,7 +175,7 @@ begin
        or new.review_note is distinct from old.review_note
        or new.changes_requested_at is distinct from old.changes_requested_at
        or new.changes_requested_by is distinct from old.changes_requested_by then
-      raise exception 'Designers can edit the content and artwork of their posts. Title, date, program, platforms, format, published link and review notes are managed by administrators.';
+      raise exception 'Designers can edit the content and artwork of unfinished posts. Title, date, program, platforms, format, published link and review notes are managed by administrators.';
     end if;
   end if;
 
@@ -235,20 +233,16 @@ create policy "Admins can create posts"
   to authenticated
   with check ((select public.is_team_admin()));
 
+-- Designers may update any post; which columns and statuses they may change
+-- is enforced row by row in posts_workflow_rules (section 3).
 drop policy if exists "Members can update posts" on public.posts;
 drop policy if exists "Admins and assigned designers can update posts" on public.posts;
-create policy "Admins and assigned designers can update posts"
+drop policy if exists "Admins and designers can update posts" on public.posts;
+create policy "Admins and designers can update posts"
   on public.posts for update
   to authenticated
-  using (
-    (select public.is_team_admin())
-    or ((select public.is_team_designer())
-        and (designer_id = (select auth.uid()) or designer_id is null))
-  )
-  with check (
-    (select public.is_team_admin())
-    or ((select public.is_team_designer()) and designer_id = (select auth.uid()))
-  );
+  using ((select public.is_team_admin()) or (select public.is_team_designer()))
+  with check ((select public.is_team_admin()) or (select public.is_team_designer()));
 
 drop policy if exists "Members can delete posts" on public.posts;
 drop policy if exists "Admins can delete posts" on public.posts;
@@ -258,7 +252,7 @@ create policy "Admins can delete posts"
   using ((select public.is_team_admin()));
 
 -- -----------------------------------------------------------------------------
--- 5. Artwork: admins, or the assigned designer while the post is not yet approved.
+-- 5. Artwork: admins, or any designer while the post is not yet approved.
 -- -----------------------------------------------------------------------------
 create or replace function public.can_edit_post_artwork(p_post_id text)
 returns boolean
@@ -273,7 +267,6 @@ as $$
       and (
         public.is_team_admin()
         or (public.is_team_designer()
-            and p.designer_id = (select auth.uid())
             and p.status in ('Planned', 'In Design', 'Ready for Review'))
       )
   );
@@ -385,7 +378,8 @@ grant execute on function public.request_post_changes(uuid, text, integer) to au
 --    * assignment        — designer_id set/changed  → the designer's account email
 --    * ready_for_review  — unchanged                → "Workflow" recipients
 --    * approved          — unchanged trigger        → "Workflow" recipients + designer
---    * changes_requested — new                      → the assigned designer
+--    * changes_requested — new                      → the assigned designer, or
+--                          "Assignments" recipients when nobody is assigned
 -- -----------------------------------------------------------------------------
 alter table public.email_settings
   add column if not exists notify_changes_requested boolean not null default true;

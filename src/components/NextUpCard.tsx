@@ -56,7 +56,7 @@ export function NextUpCard({
       </p>
       <div className="next-up-status">
         <StatusBadge status={post.status} />
-        <span className="muted">{post.designer ? `Designer: ${designerLabel(post)}` : 'Designer unassigned'}</span>
+        <span className="muted">{post.designer ? `Primary designer: ${designerLabel(post)}` : 'Designer unassigned'}</span>
       </div>
       <div className="next-up-actions">
         <button type="button" className="button button-secondary" onClick={() => onOpen(post)}>

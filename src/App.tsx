@@ -243,19 +243,6 @@ function App() {
     }
   }
 
-  /** A designer assigns an unassigned post to themselves. */
-  const handleTakeOver = async (post: SocialPost) => {
-    try {
-      const updated = await updatePost(post.id, { designerId: member.userId }, post.version)
-      showToast(`You are now the designer for “${post.title}”`)
-      if (editor?.mode === 'edit' && editor.postId === post.id) {
-        setEditor({ mode: 'edit', postId: updated.id, key: Date.now(), snapshot: updated })
-      }
-    } catch (err) {
-      reportPostError(post, err)
-    }
-  }
-
   const reviewHandlers = (post: SocialPost): ReviewHandlers => ({
     onApprove: async () => {
       if (await handleStatusChange(post, 'Approved')) setEditor(null)
@@ -462,7 +449,6 @@ function App() {
                   today={today}
                   onOpen={openPost}
                   onStatusChange={(post, status) => void handleStatusChange(post, status)}
-                  onTakeOver={(post) => void handleTakeOver(post)}
                 />
               ) : view === 'calendar' ? (
                 <CalendarView
@@ -513,7 +499,6 @@ function App() {
           onLoadLatest={reloadLatestInEditor}
           member={member}
           team={team}
-          onTakeOver={(post) => void handleTakeOver(post)}
           review={isAdmin && editingPost ? reviewHandlers(editingPost) : undefined}
           artwork={
             editor.mode === 'edit'

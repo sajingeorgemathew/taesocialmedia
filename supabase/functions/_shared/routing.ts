@@ -6,7 +6,7 @@ export interface RoutingRecipient {
   email: string
   /** Ready for Review / Approved notifications and deadline reminders. */
   receives_notifications: boolean
-  /** A copy of every assignment notification. */
+  /** A copy of every assignment notification, and designer emails for unassigned posts. */
   receives_assignments: boolean
 }
 
@@ -25,15 +25,17 @@ export interface Route {
 
 /**
  * Splits notification items per address (active recipients and accounts only):
- *   * assignment        → the assigned designer's account email, plus a copy
- *                         to recipients with receives_assignments.
+ *   * assignment        → the assigned (primary) designer's account email,
+ *                         plus a copy to recipients with receives_assignments.
  *   * ready for review  → recipients with receives_notifications.
  *   * approved          → recipients with receives_notifications, plus the
  *                         assigned designer.
- *   * changes requested → the assigned designer.
- * Nobody is emailed about their own action on their own assignment (e.g. a
- * designer taking over an unassigned post). An address that qualifies twice
- * gets one email. Addresses are never guessed from names.
+ *   * changes requested → the assigned designer; when the post has no active
+ *                         assigned designer, recipients with receives_assignments
+ *                         (the configured fallback).
+ * Nobody is emailed about their own action on a post assigned to them. An
+ * address that qualifies twice gets one email. Addresses are never guessed
+ * from names.
  */
 export function routeNotifications(
   items: NotificationItem[],
@@ -56,11 +58,14 @@ export function routeNotifications(
     if (!route.items.includes(item)) route.items.push(item)
   }
 
-  const addDesigner = (item: NotificationItem) => {
+  /** Emails the assigned designer; returns false when the post has no active one. */
+  const addDesigner = (item: NotificationItem): boolean => {
     const designer = item.post.designer_id ? membersById.get(item.post.designer_id) : undefined
-    if (!designer || item.event.actor === designer.user_id) return
+    if (!designer) return false
+    if (item.event.actor === designer.user_id) return true
     const listed = recipients.find((r) => r.email.toLowerCase() === designer.email.toLowerCase())
     add(designer.email, listed?.id ?? null, item)
+    return true
   }
 
   for (const item of items) {
@@ -77,7 +82,9 @@ export function routeNotifications(
         addDesigner(item)
         break
       case 'changes_requested':
-        addDesigner(item)
+        if (!addDesigner(item)) {
+          for (const r of recipients) if (r.receives_assignments) add(r.email, r.id, item)
+        }
         break
     }
   }
