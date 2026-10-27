@@ -1,31 +1,35 @@
 // Email HTML building blocks. Table layout with inline styles so the emails
 // render consistently in Gmail, Outlook and phone mail apps. Colours follow
-// the TAE dashboard (navy, cream, gold and the workflow status accents).
+// the app's design tokens (src/styles/tokens.css): TAE navy, a restrained
+// gold accent, warm neutrals and the workflow status colours.
 import type { PostStatus } from './model.ts'
 
 export const COLORS = {
-  navy: '#0e1f3d',
-  navy800: '#142a52',
-  navy100: '#e6ebf4',
-  cream: '#f7f2e7',
-  gold: '#c9a24a',
-  text: '#1f2a3d',
-  muted: '#5f6b80',
-  border: '#e3ddd0',
+  navy: '#122c4f',
+  navy800: '#1b3d68',
+  navy100: '#e4eaf3',
+  cream: '#f7f5f0',
+  gold: '#c9a24e',
+  text: '#17233a',
+  muted: '#6b7587',
+  border: '#e7e3da',
   danger: '#b42318',
-  dangerBg: '#fdecea',
+  dangerBg: '#fdeeec',
 }
 
 export const STATUS_COLORS: Record<PostStatus | 'Overdue', { fg: string; bg: string }> = {
-  Planned: { fg: '#5b6b85', bg: '#eef1f6' },
-  'In Design': { fg: '#6247c7', bg: '#efebfb' },
-  'Ready for Review': { fg: '#b45f06', bg: '#fdf1e1' },
-  Approved: { fg: '#0f7f86', bg: '#e3f4f4' },
-  Published: { fg: '#2c7a3f', bg: '#e5f3e8' },
+  Planned: { fg: '#536179', bg: '#eef1f5' },
+  'In Design': { fg: '#6045c9', bg: '#f1edfd' },
+  'Ready for Review': { fg: '#b05a06', bg: '#fdf2e2' },
+  Approved: { fg: '#0f766e', bg: '#e4f4f1' },
+  Published: { fg: '#1f7a3c', bg: '#e8f5ec' },
   Overdue: { fg: COLORS.danger, bg: COLORS.dangerBg },
 }
 
-const FONT = "'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+const FONT = "'Inter', 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif"
+
+/** Public path of the TAE logo in the deployed app (public/logo_final_T.png). */
+const LOGO_PATH = '/logo_final_T.png'
 
 export function escapeHtml(value: unknown): string {
   return String(value ?? '')
@@ -46,24 +50,34 @@ export function safeAppUrl(url: string): string | null {
   }
 }
 
+/** The logo served by the deployed app at the configured (https) application URL. */
+export function logoUrl(appUrl: string | null): string | null {
+  if (!appUrl) return null
+  try {
+    return new URL(LOGO_PATH, appUrl).toString()
+  } catch {
+    return null
+  }
+}
+
 export function badge(label: string, colors: { fg: string; bg: string }): string {
-  return `<span style="display:inline-block;padding:2px 10px;border-radius:999px;background:${colors.bg};color:${colors.fg};font-size:12px;font-weight:600;white-space:nowrap;">${escapeHtml(label)}</span>`
+  return `<span style="display:inline-block;padding:3px 10px;border-radius:999px;background:${colors.bg};color:${colors.fg};font-size:12px;font-weight:600;line-height:16px;white-space:nowrap;">${escapeHtml(label)}</span>`
 }
 
 export function sectionHeading(title: string, count: number, description: string, tone: 'normal' | 'danger' = 'normal'): string {
-  const color = tone === 'danger' ? COLORS.danger : COLORS.navy800
-  return `<tr><td style="padding:24px 24px 8px;">
-  <div style="font-size:13px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:${color};">${escapeHtml(title)} <span style="color:${COLORS.muted};font-weight:600;">(${count})</span></div>
-  <div style="font-size:13px;color:${COLORS.muted};padding-top:2px;">${escapeHtml(description)}</div>
+  const color = tone === 'danger' ? COLORS.danger : COLORS.navy
+  return `<tr><td class="px" style="padding:28px 32px 8px;">
+  <div style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${color};">${escapeHtml(title)} <span style="display:inline-block;margin-left:4px;padding:1px 8px;border-radius:999px;background:${tone === 'danger' ? COLORS.dangerBg : '#f3f1ec'};color:${tone === 'danger' ? COLORS.danger : COLORS.muted};font-weight:700;letter-spacing:0;">${count}</span></div>
+  <div style="font-size:13px;color:${COLORS.muted};padding-top:4px;">${escapeHtml(description)}</div>
 </td></tr>`
 }
 
 export function emptyRow(message: string): string {
-  return `<tr><td style="padding:4px 24px 0;"><div style="padding:10px 14px;border:1px dashed ${COLORS.border};border-radius:6px;color:${COLORS.muted};font-size:13px;">${escapeHtml(message)}</div></td></tr>`
+  return `<tr><td class="px" style="padding:4px 32px 0;"><div style="padding:12px 16px;border:1px dashed #d6d0c4;border-radius:8px;background:#fbfaf7;color:${COLORS.muted};font-size:13px;">${escapeHtml(message)}</div></td></tr>`
 }
 
 export function noteRow(message: string): string {
-  return `<tr><td style="padding:6px 24px 0;font-size:12px;color:${COLORS.muted};">${escapeHtml(message)}</td></tr>`
+  return `<tr><td class="px" style="padding:8px 32px 0;font-size:12px;color:${COLORS.muted};">${escapeHtml(message)}</td></tr>`
 }
 
 interface LayoutOptions {
@@ -77,15 +91,28 @@ interface LayoutOptions {
   footer: string
 }
 
+function brandMark(appUrl: string | null): string {
+  const logo = logoUrl(appUrl)
+  if (logo) {
+    return `<img src="${escapeHtml(logo)}" width="40" height="40" alt="TAE" style="display:block;width:40px;height:40px;border:0;border-radius:8px;outline:none;text-decoration:none;">`
+  }
+  // No application link configured: a text mark in the logo's colours.
+  return `<div style="width:40px;height:40px;border-radius:8px;background:#1b3d68;color:#d9cdb0;font-size:22px;font-weight:800;line-height:40px;text-align:center;">T</div>`
+}
+
 export function renderLayout(o: LayoutOptions): string {
   const button = o.appUrl
-    ? `<tr><td style="padding:28px 24px 4px;" align="left">
-  <a href="${escapeHtml(o.appUrl)}" style="display:inline-block;padding:11px 20px;border-radius:6px;background:${COLORS.navy800};color:#ffffff;font-weight:600;font-size:14px;text-decoration:none;">Open TAE Social Media Manager</a>
-  <div style="font-size:12px;color:${COLORS.muted};padding-top:8px;">Sign-in required. Links are never shared outside the TAE team.</div>
+    ? `<tr><td class="px" style="padding:32px 32px 4px;" align="left">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
+    <td bgcolor="${COLORS.navy}" style="border-radius:8px;background:${COLORS.navy};">
+      <a href="${escapeHtml(o.appUrl)}" style="display:inline-block;padding:13px 24px;border-radius:8px;background:${COLORS.navy};color:#ffffff;font-family:${FONT};font-weight:600;font-size:14px;line-height:18px;text-decoration:none;">Open TAE Social Media Manager &rarr;</a>
+    </td>
+  </tr></table>
+  <div style="font-size:12px;color:${COLORS.muted};padding-top:10px;">Sign-in required. Links are never shared outside the TAE team.</div>
 </td></tr>`
     : ''
   const banner = o.banner
-    ? `<tr><td style="padding:16px 24px 0;"><div style="padding:10px 14px;border-radius:6px;background:${COLORS.navy100};color:${COLORS.navy800};font-size:13px;font-weight:600;">${escapeHtml(o.banner)}</div></td></tr>`
+    ? `<tr><td class="px" style="padding:20px 32px 0;"><div style="padding:12px 16px;border-radius:8px;background:#fbf7ec;border:1px solid #f0e3c2;color:#5f4a1c;font-size:13px;font-weight:600;">${escapeHtml(o.banner)}</div></td></tr>`
     : ''
   return `<!doctype html>
 <html lang="en">
@@ -93,30 +120,47 @@ export function renderLayout(o: LayoutOptions): string {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
 <title>${escapeHtml(o.heading)}</title>
+<style>
+  @media (max-width: 600px) {
+    .px { padding-left: 20px !important; padding-right: 20px !important; }
+    .shell { padding: 12px 8px !important; }
+    .h1 { font-size: 20px !important; }
+  }
+</style>
 </head>
-<body style="margin:0;padding:0;background:${COLORS.cream};font-family:${FONT};color:${COLORS.text};">
-<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(o.preheader)}</div>
+<body style="margin:0;padding:0;background:${COLORS.cream};font-family:${FONT};color:${COLORS.text};-webkit-font-smoothing:antialiased;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(o.preheader)}&#8199;&#65279;&#847;&#8199;&#65279;&#847;&#8199;&#65279;&#847;</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${COLORS.cream};">
-<tr><td align="center" style="padding:24px 12px;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;background:#ffffff;border:1px solid ${COLORS.border};border-radius:10px;overflow:hidden;">
-<tr><td style="background:${COLORS.navy};border-bottom:3px solid ${COLORS.gold};padding:18px 24px;">
+<tr><td class="shell" align="center" style="padding:32px 16px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:640px;">
+<tr><td style="padding:0 4px 16px;">
   <table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-    <td style="width:42px;height:42px;border-radius:21px;background:${COLORS.cream};color:${COLORS.navy};font-weight:800;font-size:13px;text-align:center;vertical-align:middle;">TAE</td>
-    <td style="padding-left:12px;">
-      <div style="color:#ffffff;font-size:17px;font-weight:700;">TAE Social Media Manager</div>
-      <div style="color:#c4cee0;font-size:12px;">Toronto Academy of Education</div>
+    <td style="vertical-align:middle;">${brandMark(o.appUrl)}</td>
+    <td style="padding-left:12px;vertical-align:middle;">
+      <div style="color:${COLORS.navy};font-size:16px;font-weight:700;line-height:20px;">TAE Social Media Manager</div>
+      <div style="color:${COLORS.muted};font-size:12px;line-height:16px;">Toronto Academy of Education</div>
     </td>
   </tr></table>
 </td></tr>
+<tr><td>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border:1px solid ${COLORS.border};border-radius:12px;overflow:hidden;">
+<tr><td style="height:4px;line-height:4px;font-size:0;background:${COLORS.navy};border-bottom:2px solid ${COLORS.gold};">&nbsp;</td></tr>
 ${banner}
-<tr><td style="padding:22px 24px 0;">
-  <div style="font-size:20px;font-weight:700;color:${COLORS.navy};">${escapeHtml(o.heading)}</div>
-  <div style="font-size:14px;color:${COLORS.muted};padding-top:4px;">${escapeHtml(o.subheading)}</div>
+<tr><td class="px" style="padding:28px 32px 0;">
+  <div class="h1" style="font-size:22px;font-weight:700;letter-spacing:-0.01em;line-height:28px;color:${COLORS.navy};">${escapeHtml(o.heading)}</div>
+  <div style="font-size:14px;line-height:20px;color:${COLORS.muted};padding-top:6px;">${escapeHtml(o.subheading)}</div>
 </td></tr>
 ${o.rows}
 ${button}
-<tr><td style="padding:24px;"><div style="border-top:1px solid ${COLORS.border};padding-top:14px;font-size:12px;color:${COLORS.muted};line-height:1.5;">${escapeHtml(o.footer)}</div></td></tr>
+<tr><td style="padding:32px 0 0;font-size:0;line-height:0;">&nbsp;</td></tr>
+</table>
+</td></tr>
+<tr><td style="padding:20px 8px 0;font-size:12px;color:${COLORS.muted};line-height:18px;" align="center">
+  ${escapeHtml(o.footer)}
+  <div style="padding-top:10px;color:#98a0ae;">TAE Social Media Manager &middot; Toronto Academy of Education</div>
+</td></tr>
 </table>
 </td></tr>
 </table>

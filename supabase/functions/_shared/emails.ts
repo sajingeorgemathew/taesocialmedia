@@ -39,13 +39,13 @@ export function nextAction(post: PostRow): string {
 function postCard(post: PostRow, today: string): string {
   const overdue = isOverdue(post, today)
   const designer = post.designer.trim() || 'Unassigned'
-  return `<tr><td style="padding:6px 24px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${COLORS.border};border-left:4px solid ${STATUS_COLORS[post.status].fg};border-radius:6px;">
-<tr><td style="padding:10px 14px;">
-  <div style="font-size:15px;font-weight:600;color:${COLORS.navy};">${escapeHtml(post.title)}</div>
-  <div style="font-size:13px;color:${COLORS.muted};padding-top:2px;">${escapeHtml(post.program)} · ${escapeHtml(formatDateKey(post.publish_date))}</div>
-  <div style="padding-top:6px;font-size:13px;">${badge(post.status, STATUS_COLORS[post.status])}${overdue ? ` ${badge('Overdue', STATUS_COLORS.Overdue)}` : ''} <span style="color:${COLORS.muted};">&nbsp;Designer:</span> ${escapeHtml(designer)}</div>
-  <div style="font-size:13px;padding-top:6px;color:${COLORS.text};"><strong style="color:${COLORS.navy800};">Next:</strong> ${escapeHtml(nextAction(post))}</div>
+  return `<tr><td class="px" style="padding:8px 32px 0;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${COLORS.border};border-left:4px solid ${STATUS_COLORS[post.status].fg};border-radius:8px;">
+<tr><td style="padding:14px 16px;">
+  <div style="font-size:15px;font-weight:600;line-height:21px;color:${COLORS.navy};">${escapeHtml(post.title)}</div>
+  <div style="font-size:13px;color:${COLORS.muted};padding-top:3px;">${escapeHtml(post.program)} · ${escapeHtml(formatDateKey(post.publish_date))}</div>
+  <div style="padding-top:10px;font-size:13px;">${badge(post.status, STATUS_COLORS[post.status])}${overdue ? ` ${badge('Overdue', STATUS_COLORS.Overdue)}` : ''} <span style="color:${COLORS.muted};">&nbsp;Designer:</span> ${escapeHtml(designer)}</div>
+  <div style="font-size:13px;line-height:19px;margin-top:10px;padding-top:10px;border-top:1px solid #efece5;color:${COLORS.text};"><strong style="color:${COLORS.navy};">Next:</strong> ${escapeHtml(nextAction(post))}</div>
 </td></tr>
 </table>
 </td></tr>`
@@ -181,11 +181,11 @@ export function buildDigest(o: DigestOptions): RenderedEmail {
 
   // Two rows of three tiles: readable on phones without media queries.
   const tile = (t: (typeof summary)[number]) =>
-    `<td width="33%" style="padding:4px;"><div style="border-radius:8px;background:${t.colors.bg};padding:10px 12px;">
-  <div style="font-size:11px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${t.colors.fg};">${escapeHtml(t.label)}</div>
-  <div style="font-size:24px;font-weight:700;color:${COLORS.navy};">${t.value}</div>
+    `<td width="33%" style="padding:4px;"><div style="border-radius:10px;background:${t.colors.bg};padding:12px 14px;">
+  <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${t.colors.fg};">${escapeHtml(t.label)}</div>
+  <div style="font-size:26px;font-weight:700;line-height:32px;color:${COLORS.navy};">${t.value}</div>
 </div></td>`
-  const summaryHtml = `<tr><td style="padding:16px 20px 0;">
+  const summaryHtml = `<tr><td class="px" style="padding:20px 28px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>${summary.slice(0, 3).map(tile).join('')}</tr>
 <tr>${summary.slice(3).map(tile).join('')}</tr>
@@ -263,7 +263,7 @@ export function stillRelevant(item: NotificationItem): boolean {
 }
 
 function reviewNoteRow(note: string): string {
-  return `<tr><td style="padding:8px 24px 0;"><div style="padding:10px 14px;border-radius:6px;background:${COLORS.cream};border:1px solid ${COLORS.border};font-size:13px;color:${COLORS.text};white-space:pre-wrap;"><strong style="color:${COLORS.navy800};">Requested changes:</strong> ${escapeHtml(note)}</div></td></tr>`
+  return `<tr><td class="px" style="padding:8px 32px 0;"><div style="padding:12px 16px;border-radius:8px;background:#fdf2e2;border:1px solid #f4d8ae;font-size:13px;line-height:19px;color:${COLORS.text};white-space:pre-wrap;"><strong style="color:#b05a06;">Requested changes:</strong> ${escapeHtml(note)}</div></td></tr>`
 }
 
 export function buildNotificationEmail(items: NotificationItem[], today: string, appUrl: string | null): RenderedEmail {
@@ -272,7 +272,7 @@ export function buildNotificationEmail(items: NotificationItem[], today: string,
   for (const { event, post } of items) {
     const label =
       event.event_type === 'assignment' ? `${EVENT_LABEL.assignment}: ${post.designer.trim()}` : EVENT_LABEL[event.event_type]
-    rows += `<tr><td style="padding:14px 24px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${COLORS.navy800};">${escapeHtml(label)}</div></td></tr>`
+    rows += `<tr><td class="px" style="padding:22px 32px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${COLORS.navy};">${escapeHtml(label)}</div></td></tr>`
     rows += postCard(post, today)
     text.push(label.toUpperCase(), postLine(post, today))
     if (event.event_type === 'changes_requested' && post.review_note.trim()) {

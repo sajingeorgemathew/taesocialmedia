@@ -28,3 +28,6 @@ dist-ssr
 
 # Supabase CLI local state
 supabase/.temp/
+
+# Local email template previews (npm run email:preview)
+dev/email-preview/
