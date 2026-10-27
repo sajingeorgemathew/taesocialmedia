@@ -16,7 +16,7 @@ declare
   member_id uuid;
 begin
   select user_id into admin_id from public.team_members where role = 'admin' limit 1;
-  select user_id into member_id from public.team_members where role = 'member' limit 1;
+  select user_id into member_id from public.team_members where role <> 'admin' limit 1;  -- 'designer' since Feature 4
   if admin_id is null then
     raise exception 'FAIL: no admin found in public.team_members.';
   end if;
@@ -78,7 +78,7 @@ begin
       raise notice 'PASS: non-admin member cannot add schedules';
     end;
   else
-    raise notice 'SKIP: no member-role user exists to test non-admin access';
+    raise notice 'SKIP: no designer (non-admin) user exists to test non-admin access';
   end if;
 
   -- 4. Admin -----------------------------------------------------------------

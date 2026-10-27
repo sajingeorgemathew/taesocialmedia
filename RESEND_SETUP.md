@@ -53,15 +53,20 @@ Email Reminders page (admin) ──user JWT──► email-send-test (admin chec
   work.
 * **Workflow notifications** are queued by a database trigger only on these
   changes — never on ordinary edits, and only for types switched on:
-  designer assigned/changed, status → *Ready for Review*, status → *Approved*.
+  designer assigned/changed, status → *Ready for Review*, status → *Approved*,
+  and (Feature 4) *Request changes*.
   Changes are grouped (after 2 quiet minutes) into one email per recipient.
 * **Who gets what** (per recipient, editable in the app):
 
   | Email | Sent to |
   | --- | --- |
   | Progress digest | Active recipients with **Digest** ticked |
-  | Ready for Review / Approved / deadline reminders | Active recipients with **Workflow** ticked |
-  | Assignment | The **linked designer** — the recipient whose *Designer name on posts* matches the post's designer (an admin sets this link). If no designer is linked: only recipients with **Assignments** ticked. Addresses are never guessed from names. |
+  | Ready for Review / deadline reminders | Active recipients with **Workflow** ticked |
+  | Approved | **Workflow** recipients + the assigned designer's account email |
+  | Assignment | The assigned designer's **account email** (Feature 4), plus a copy to recipients with **Assignments** ticked. Addresses are never guessed from names. |
+  | Changes requested | The assigned designer's account email |
+
+  Since Feature 4, designers are team accounts; see [DESIGNER_SETUP.md](DESIGNER_SETUP.md).
 
 ---
 

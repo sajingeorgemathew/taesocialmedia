@@ -106,9 +106,9 @@ export function AccessDeniedScreen({ email }: { email: string | undefined }) {
     <AuthLayout title="Access not granted">
       <p className="auth-text">
         You are signed in as <strong>{email ?? 'an unknown account'}</strong>, but this account has not been added
-        to the TAE social media team.
+        to the TAE social media team, or it has been disabled.
       </p>
-      <p className="auth-text muted">Ask your administrator to add you, then sign in again.</p>
+      <p className="auth-text muted">Ask your administrator to give you access, then sign in again.</p>
       <button type="button" className="button button-primary auth-submit" onClick={() => void signOut()}>
         Sign out
       </button>

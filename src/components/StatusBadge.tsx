@@ -9,19 +9,23 @@ interface StatusSelectProps {
   status: PostStatus
   onChange: (status: PostStatus) => void
   label?: string
+  /** Statuses the person may choose; defaults to all. */
+  options?: readonly PostStatus[]
 }
 
 /** Compact dropdown for changing a post's status outside the editor. */
-export function StatusSelect({ status, onChange, label = 'Change status' }: StatusSelectProps) {
+export function StatusSelect({ status, onChange, label = 'Change status', options = STATUSES }: StatusSelectProps) {
+  const choices = STATUSES.filter((s) => s === status || options.includes(s))
   return (
     <select
       className={`status-select status-${statusSlug(status)}`}
       value={status}
       aria-label={label}
+      disabled={choices.length <= 1}
       onChange={(e) => onChange(e.target.value as PostStatus)}
       onClick={(e) => e.stopPropagation()}
     >
-      {STATUSES.map((s) => (
+      {choices.map((s) => (
         <option key={s} value={s}>
           {s}
         </option>

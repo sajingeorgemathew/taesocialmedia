@@ -15,6 +15,16 @@ export function nextStatus(status: PostStatus): PostStatus | null {
   return index < STATUSES.length - 1 ? STATUSES[index + 1] : null
 }
 
+/**
+ * The designer shown on a post. A name without an account is a legacy name
+ * typed before designer accounts; unfinished ones are flagged for an admin.
+ */
+export function designerLabel(post: SocialPost, unassigned = 'Unassigned'): string {
+  if (!post.designer) return unassigned
+  if (post.designerId || post.status === 'Published') return post.designer
+  return `${post.designer} (not linked)`
+}
+
 export function isDone(post: SocialPost): boolean {
   return post.status === 'Published'
 }
@@ -86,7 +96,7 @@ export function createEmptyDraft(publishDate: string): PostDraft {
     creativeWording: '',
     designBrief: '',
     reelScript: '',
-    designer: '',
+    designerId: null,
     status: 'Planned',
     notes: '',
     artworkUrl: '',
@@ -106,7 +116,7 @@ export function toDraft(post: SocialPost): PostDraft {
     creativeWording: post.creativeWording,
     designBrief: post.designBrief,
     reelScript: post.reelScript,
-    designer: post.designer,
+    designerId: post.designerId,
     status: post.status,
     notes: post.notes,
     artworkUrl: post.artworkUrl,

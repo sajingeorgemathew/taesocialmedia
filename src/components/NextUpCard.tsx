@@ -1,6 +1,6 @@
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
-import { isOverdue, nextStatus } from '../utils/posts'
+import { designerLabel, isOverdue, nextStatus } from '../utils/posts'
 import { StatusBadge } from './StatusBadge'
 
 interface NextUpCardProps {
@@ -9,20 +9,32 @@ interface NextUpCardProps {
   onOpen: (post: SocialPost) => void
   onStatusChange: (post: SocialPost, status: PostStatus) => void
   onViewQueue: () => void
+  /** Statuses the signed-in person may choose for a post. */
+  statusOptions: (post: SocialPost) => readonly PostStatus[]
+  emptyMessage?: string
 }
 
-export function NextUpCard({ post, today, onOpen, onStatusChange, onViewQueue }: NextUpCardProps) {
+export function NextUpCard({
+  post,
+  today,
+  onOpen,
+  onStatusChange,
+  onViewQueue,
+  statusOptions,
+  emptyMessage = 'Every post is published. Add a new post to keep the calendar going.',
+}: NextUpCardProps) {
   if (!post) {
     return (
       <section className="panel next-up next-up-empty">
         <h2 className="panel-title">Next up</h2>
-        <p>Every post is published. Add a new post to keep the calendar going.</p>
+        <p>{emptyMessage}</p>
       </section>
     )
   }
 
   const overdue = isOverdue(post, today)
-  const advanceTo = nextStatus(post.status)
+  const next = nextStatus(post.status)
+  const advanceTo = next && statusOptions(post).includes(next) ? next : null
 
   return (
     <section className={`panel next-up${overdue ? ' is-overdue' : ''}`}>
@@ -44,7 +56,7 @@ export function NextUpCard({ post, today, onOpen, onStatusChange, onViewQueue }:
       </p>
       <div className="next-up-status">
         <StatusBadge status={post.status} />
-        <span className="muted">{post.designer ? `Designer: ${post.designer}` : 'Designer unassigned'}</span>
+        <span className="muted">{post.designer ? `Designer: ${designerLabel(post)}` : 'Designer unassigned'}</span>
       </div>
       <div className="next-up-actions">
         <button type="button" className="button button-secondary" onClick={() => onOpen(post)}>

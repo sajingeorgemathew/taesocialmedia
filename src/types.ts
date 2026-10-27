@@ -69,11 +69,21 @@ export interface SocialPost {
   designBrief: string
   /** Scenes, voiceover and on-screen text instructions. Used for Reels. */
   reelScript: string
+  /** Assigned designer account (team_members.user_id), or null when unassigned. */
+  designerId: string | null
+  /**
+   * Display name of the assigned designer, kept in step by the database. When
+   * designerId is null it may hold a legacy name typed before designer accounts.
+   */
   designer: string
   status: PostStatus
   notes: string
   artworkUrl: string
   publishedUrl: string
+  /** Latest feedback from "Request changes". */
+  reviewNote: string
+  /** Set while a change request is open; cleared on resubmission or approval. */
+  changesRequestedAt: string | null
   /** Uploaded artwork images, ordered by position. Managed outside the draft. */
   artwork: ArtworkAsset[]
   /** Incremented on every save; used to detect concurrent edits. */
@@ -82,8 +92,14 @@ export interface SocialPost {
   updatedAt: string
 }
 
-/** Editable fields of a post (everything the user controls). */
-export type PostDraft = Omit<SocialPost, 'id' | 'artwork' | 'version' | 'createdAt' | 'updatedAt'>
+/**
+ * Editable fields of a post (everything the user controls). The designer's
+ * name and review fields are maintained by the database.
+ */
+export type PostDraft = Omit<
+  SocialPost,
+  'id' | 'artwork' | 'version' | 'createdAt' | 'updatedAt' | 'designer' | 'reviewNote' | 'changesRequestedAt'
+>
 
 export interface PostFilters {
   program: Program | 'All'
@@ -97,4 +113,4 @@ export const EMPTY_FILTERS: PostFilters = {
   platform: 'All',
 }
 
-export type ViewName = 'calendar' | 'list' | 'queue'
+export type ViewName = 'mine' | 'calendar' | 'list' | 'queue'

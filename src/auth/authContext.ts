@@ -1,17 +1,19 @@
 import type { User } from '@supabase/supabase-js'
 import { createContext, useContext } from 'react'
 
+export type TeamRole = 'admin' | 'designer'
+
 export interface TeamMember {
   userId: string
   email: string
   displayName: string
-  role: 'admin' | 'member'
+  role: TeamRole
 }
 
 export type AuthState =
   | { status: 'loading'; message: string }
   | { status: 'signed-out' }
-  /** Signed in, but not on the TAE team list. */
+  /** Signed in, but not on the TAE team list (or the account was disabled). */
   | { status: 'unauthorized'; user: User }
   | { status: 'error'; user: User; message: string }
   | { status: 'authorized'; user: User; member: TeamMember }

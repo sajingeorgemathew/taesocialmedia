@@ -75,10 +75,12 @@ interface SavedArtworkProps {
   onUpload: (file: File) => Promise<unknown>
   onRemove: (asset: ArtworkAsset) => Promise<void>
   onReorder: (ordered: ArtworkAsset[]) => Promise<void>
+  /** View only: no upload, reorder or remove controls. */
+  readOnly?: boolean
 }
 
 /** Artwork of a saved post. Changes are saved immediately, separately from the form. */
-export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder }: SavedArtworkProps) {
+export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder, readOnly = false }: SavedArtworkProps) {
   const [previews, setPreviews] = useState<Record<string, string>>({})
   const [previewError, setPreviewError] = useState<string | null>(null)
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null)
@@ -158,16 +160,18 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder }:
 
   return (
     <div className="artwork">
-      <div className="artwork-toolbar">
-        <span className="field-description">
-          {HINT}. Uploads and removals are saved immediately.
-        </span>
-        <FilePicker
-          label={artwork.length > 0 ? 'Add more images' : 'Upload images'}
-          disabled={progress !== null || artwork.length >= ARTWORK_MAX_PER_POST}
-          onPick={(files) => void handlePick(files)}
-        />
-      </div>
+      {!readOnly && (
+        <div className="artwork-toolbar">
+          <span className="field-description">
+            {HINT}. Uploads and removals are saved immediately.
+          </span>
+          <FilePicker
+            label={artwork.length > 0 ? 'Add more images' : 'Upload images'}
+            disabled={progress !== null || artwork.length >= ARTWORK_MAX_PER_POST}
+            onPick={(files) => void handlePick(files)}
+          />
+        </div>
+      )}
 
       {progress && (
         <p className="artwork-progress" role="status">
@@ -204,34 +208,36 @@ export function SavedArtwork({ format, artwork, onUpload, onRemove, onReorder }:
                 </span>
                 <span className="muted small">{formatSize(asset.sizeBytes)}</span>
               </div>
-              <div className="artwork-actions">
-                <button
-                  type="button"
-                  className="icon-button artwork-icon"
-                  aria-label={`Move ${asset.fileName} earlier`}
-                  disabled={index === 0 || busyId !== null}
-                  onClick={() => void move(index, -1)}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className="icon-button artwork-icon"
-                  aria-label={`Move ${asset.fileName} later`}
-                  disabled={index === artwork.length - 1 || busyId !== null}
-                  onClick={() => void move(index, 1)}
-                >
-                  ›
-                </button>
-                <button
-                  type="button"
-                  className="button button-ghost button-small button-danger-text"
-                  disabled={busyId !== null}
-                  onClick={() => setPendingRemove(asset)}
-                >
-                  Remove
-                </button>
-              </div>
+              {!readOnly && (
+                <div className="artwork-actions">
+                  <button
+                    type="button"
+                    className="icon-button artwork-icon"
+                    aria-label={`Move ${asset.fileName} earlier`}
+                    disabled={index === 0 || busyId !== null}
+                    onClick={() => void move(index, -1)}
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-button artwork-icon"
+                    aria-label={`Move ${asset.fileName} later`}
+                    disabled={index === artwork.length - 1 || busyId !== null}
+                    onClick={() => void move(index, 1)}
+                  >
+                    ›
+                  </button>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small button-danger-text"
+                    disabled={busyId !== null}
+                    onClick={() => setPendingRemove(asset)}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ol>

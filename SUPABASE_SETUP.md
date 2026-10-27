@@ -97,6 +97,10 @@ Check the result:
 | `storage.objects` in `social-media-assets` | team members | team members, only into `posts/<existing post id>/` | *nobody* (no overwrites) | team members |
 | anything, as anonymous (`anon`) | ✗ | ✗ | ✗ | ✗ |
 
+> **Feature 4:** posts, artwork and storage writes are now split between
+> admins and designers (designers: own posts only, no create/delete/approve).
+> See [DESIGNER_SETUP.md](DESIGNER_SETUP.md) and README → Feature 4.
+
 Server-side triggers also keep `version`, `updated_at`, `updated_by`,
 `created_at` and `created_by` trustworthy — the browser cannot fake them.
 
@@ -127,7 +131,7 @@ Repeat step 1–2 for each person, then:
 
 ```sql
 insert into public.team_members (user_id, email, display_name, role)
-select id, email, 'Designer Name', 'member'   -- or 'admin'
+select id, email, 'Designer Name', 'designer'   -- or 'admin'
 from auth.users
 where email = 'person@example.com';
 ```
@@ -140,7 +144,10 @@ select email, display_name, role, created_at from public.team_members order by c
 
 -- Promote / demote
 update public.team_members set role = 'admin'  where email = 'person@example.com';
-update public.team_members set role = 'member' where email = 'person@example.com';
+update public.team_members set role = 'designer' where email = 'person@example.com';
+
+-- Disable / re-enable access without deleting (Feature 4)
+update public.team_members set active = false where email = 'person@example.com';
 
 -- Remove access (their posts stay; they can no longer sign in to the content)
 delete from public.team_members where email = 'person@example.com';

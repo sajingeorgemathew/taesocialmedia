@@ -23,6 +23,7 @@ export interface EmailSettings {
   notifyReadyForReview: boolean
   notifyApproved: boolean
   notifyDeadline: boolean
+  notifyChangesRequested: boolean
   deadlineDaysAhead: number
   /** HH:MM, America/Toronto. */
   deadlineReminderTime: string
@@ -38,9 +39,9 @@ export interface EmailRecipient {
   receivesDigest: boolean
   /** Ready for Review / Approved notifications and deadline reminders. */
   receivesNotifications: boolean
-  /** Assignment notifications for designers with no linked recipient. */
+  /** A copy of every assignment notification (designers are emailed at their account address). */
   receivesAssignments: boolean
-  /** Admin-confirmed designer name (as typed on posts) this address belongs to. */
+  /** Legacy (Feature 3) link to a typed designer name; only used to link old posts to accounts. */
   designerName: string
   createdAt: string
 }

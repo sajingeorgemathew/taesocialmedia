@@ -59,7 +59,7 @@ export function UserMenu({ member, onRefresh, onImport, onEmailReminders, onSign
         <div className="user-menu-panel" role="menu">
           <div className="user-menu-identity">
             <span className="user-menu-email">{member.email}</span>
-            <span className="muted small">{member.role === 'admin' ? 'Administrator' : 'Team member'}</span>
+            <span className="muted small">{member.role === 'admin' ? 'Administrator' : 'Designer'}</span>
           </div>
           <button type="button" role="menuitem" className="user-menu-item" onClick={choose(onRefresh)}>
             Refresh posts

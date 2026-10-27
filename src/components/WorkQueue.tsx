@@ -1,6 +1,6 @@
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
-import { getWorkQueue, isOverdue, nextStatus } from '../utils/posts'
+import { designerLabel, getWorkQueue, isOverdue, nextStatus } from '../utils/posts'
 import { StatusSelect } from './StatusBadge'
 
 interface WorkQueueProps {
@@ -8,10 +8,12 @@ interface WorkQueueProps {
   today: string
   onOpen: (post: SocialPost) => void
   onStatusChange: (post: SocialPost, status: PostStatus) => void
+  /** Statuses the signed-in person may choose for a post. */
+  statusOptions: (post: SocialPost) => readonly PostStatus[]
 }
 
 /** Unfinished posts in date order, with overdue items listed first. */
-export function WorkQueue({ posts, today, onOpen, onStatusChange }: WorkQueueProps) {
+export function WorkQueue({ posts, today, onOpen, onStatusChange, statusOptions }: WorkQueueProps) {
   const queue = getWorkQueue(posts)
   const overdue = queue.filter((p) => isOverdue(p, today))
   const upcoming = queue.filter((p) => !isOverdue(p, today))
@@ -21,7 +23,9 @@ export function WorkQueue({ posts, today, onOpen, onStatusChange }: WorkQueuePro
   }
 
   const renderItem = (post: SocialPost, position: number) => {
-    const advanceTo = nextStatus(post.status)
+    const options = statusOptions(post)
+    const next = nextStatus(post.status)
+    const advanceTo = next && options.includes(next) ? next : null
     return (
       <li key={post.id} className={`queue-item${position === 0 ? ' is-next' : ''}`}>
         <span className="queue-position" aria-hidden="true">
@@ -33,11 +37,11 @@ export function WorkQueue({ posts, today, onOpen, onStatusChange }: WorkQueuePro
           </span>
           <span className="queue-title">{post.title}</span>
           <span className="queue-meta">
-            {PROGRAM_SHORT[post.program]} · {post.format} · {post.designer || 'Designer unassigned'}
+            {PROGRAM_SHORT[post.program]} · {post.format} · {designerLabel(post, 'Designer unassigned')}
           </span>
         </button>
         <div className="queue-actions">
-          <StatusSelect status={post.status} onChange={(status) => onStatusChange(post, status)} />
+          <StatusSelect status={post.status} options={options} onChange={(status) => onStatusChange(post, status)} />
           {advanceTo && (
             <button
               type="button"

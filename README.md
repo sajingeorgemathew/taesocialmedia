@@ -458,3 +458,94 @@ Create RESEND_SETUP.md documenting:
 - Existing application still works
 - npm run lint passes
 - npm run build passes
+
+
+# Feature 4 — Designer Assignments & Role Permissions
+
+## Objective
+
+Give the office (admins) and designers separate, database-enforced permissions,
+replace the free-text designer field with real designer accounts, and add a
+clear review workflow (Approve / Request changes) — without changing the
+working Feature 3 email queue, Cron schedule, Resend integration, delivery
+logs, retries or digest behaviour.
+
+Setup, migration order and the manual QA checklist: **DESIGNER_SETUP.md**.
+
+## 1. Roles (public.team_members)
+
+| | Admin | Designer |
+| --- | --- | --- |
+| See the calendar, all posts and artwork | ✓ | ✓ (open space) |
+| Create, duplicate, delete posts | ✓ | ✗ |
+| Edit title, date, program, platforms, format, published link | ✓ | ✗ |
+| Edit caption, creative wording, design brief, reel script, notes, artwork link | ✓ | own posts, until approved |
+| Upload / reorder / remove artwork | ✓ | own posts, until approved |
+| Move status Planned ↔ In Design ↔ Ready for Review | ✓ | own posts |
+| Approve, publish, request changes | ✓ | ✗ |
+| Assign / reassign / unassign | ✓ | may only **take over an unassigned** post |
+| Team accounts, email administration, import | ✓ | ✗ |
+
+- Existing `member` accounts become `designer`.
+- `team_members.active = false` disables an account everywhere (sign-in shows
+  "Access not granted"; RLS denies everything). The last active admin cannot be
+  disabled or removed.
+- Enforced in the database: RLS on `posts`, `post_assets`, `storage.objects`,
+  plus the `posts_workflow_rules` trigger for column- and status-level rules.
+  The UI mirrors the rules (`src/utils/permissions.ts`) but is never the only
+  protection.
+
+## 2. Structured assignments
+
+- `posts.designer_id` references `team_members.user_id`.
+- `posts.designer` (text) is kept: it is the assigned designer's display name,
+  maintained by the trigger, so digests, deadline emails and published history
+  keep working. Unassigning clears it, except on Published posts.
+- Admins choose from a dropdown of active designer accounts.
+- Migration: an existing typed name is linked only when it matches exactly one
+  active designer account (display name, account email, or the admin-confirmed
+  Feature 3 "Designer name on posts" link). Ambiguous and unmatched names are
+  reported, never guessed, and flagged in the app ("not linked") for an admin
+  to assign. Published posts are left untouched. Re-run with
+  `select * from public.link_legacy_designers();`.
+- Designers get a **My Assignments** view: Changes requested, To do, Waiting for
+  review, Approved, and unassigned Open work they can take over.
+
+## 3. Review workflow
+
+1. Designer: **Submit for review** (status → Ready for Review). Office/Workflow
+   recipients are emailed (unchanged behaviour).
+2. Admin, in the post editor: **Approve** (→ Approved) or **Request changes**
+   with a required note (→ In Design, note shown to the designer). Implemented
+   by `request_post_changes()`; the change request is cleared automatically on
+   resubmission, approval or publishing.
+
+## 4. Email notifications
+
+| Event | Recipients |
+| --- | --- |
+| Assigned / reassigned | The designer's **account email**, plus a copy to recipients with *Assignments* ticked. Only when the assigned account actually changes; a designer taking over a post is not emailed about it. |
+| Ready for Review | Recipients with *Workflow* ticked (unchanged) |
+| Approved | Recipients with *Workflow* ticked + the assigned designer |
+| Changes requested (new toggle, on by default) | The assigned designer |
+
+Same queue, 2-minute grouping, 5-minute Cron, dedupe keys, Resend idempotency,
+retries and delivery log as Feature 3. Designer addresses are delivered only
+while the account is active.
+
+## Out of scope
+
+- Creating/inviting accounts from the app (accounts are still created in the
+  Supabase dashboard — see DESIGNER_SETUP.md).
+- Per-post deep links in emails.
+
+## Acceptance Criteria
+
+- Designers cannot approve, publish, create, delete, reassign, or edit other
+  designers' posts — including through direct API calls
+  (`supabase/tests/verify_designer_rls.sql`)
+- Existing posts, published history, email settings and schedules are kept
+- Assignment, approval and change-request emails reach the right addresses
+  (`npm run test:email`)
+- npm run lint passes
+- npm run build passes

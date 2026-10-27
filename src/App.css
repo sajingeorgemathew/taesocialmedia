@@ -2283,3 +2283,134 @@ fieldset.field legend {
     white-space: normal;
   }
 }
+
+/* ---------- Designer assignments & review (Feature 4) ---------- */
+.my-assignments {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.my-assignments .queue-item {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.assignment-description {
+  margin: -4px 0 8px;
+}
+
+.assignment-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--danger);
+  white-space: pre-wrap;
+}
+
+.alert-info {
+  background: var(--status-review-bg);
+  color: var(--text);
+}
+
+.readonly-notice {
+  padding: 10px 14px;
+  border: 1px solid var(--border-strong);
+  border-left-width: 4px;
+  border-radius: var(--radius-small);
+  background: var(--cream);
+  font-size: 14px;
+}
+
+.review-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid var(--danger);
+  border-left-width: 4px;
+  border-radius: var(--radius-small);
+  background: var(--danger-bg);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.review-notice strong {
+  color: var(--danger);
+}
+
+.review-notice p {
+  white-space: pre-wrap;
+}
+
+.review-notice.is-history {
+  border-color: var(--border-strong);
+  background: var(--cream);
+}
+
+.review-notice.is-history strong {
+  color: var(--navy-700);
+}
+
+.review-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--status-review);
+  border-left-width: 4px;
+  border-radius: var(--radius-small);
+  background: var(--status-review-bg);
+}
+
+.review-panel-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.field-static {
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .my-assignments .queue-item {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .my-assignments .queue-actions {
+    grid-column: 1;
+  }
+}
+
+.step:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.step.is-active:disabled {
+  opacity: 1;
+}
+
+.step:disabled:hover {
+  border-color: var(--border);
+}
+
+.step.is-active:disabled:hover {
+  border-color: var(--s);
+}
+
+.status-select:disabled {
+  cursor: default;
+  opacity: 0.85;
+}

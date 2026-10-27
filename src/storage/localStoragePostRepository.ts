@@ -46,11 +46,14 @@ function normalizePost(raw: Record<string, unknown>): SocialPost {
     creativeWording: text(raw.creativeWording),
     designBrief: text(raw.designBrief),
     reelScript: text(raw.reelScript),
+    designerId: null,
     designer: text(raw.designer),
     status: oneOf(STATUSES, raw.status, 'Planned'),
     notes: text(raw.notes),
     artworkUrl: text(raw.artworkUrl),
     publishedUrl: text(raw.publishedUrl),
+    reviewNote: '',
+    changesRequestedAt: null,
     // Uploaded artwork only exists in Supabase.
     artwork: [],
     version: typeof raw.version === 'number' && raw.version > 0 ? raw.version : 1,
@@ -60,7 +63,17 @@ function normalizePost(raw: Record<string, unknown>): SocialPost {
 }
 
 function buildPost(draft: PostDraft, createdAt: string): SocialPost {
-  return { ...draft, id: createId(), artwork: [], version: 1, createdAt, updatedAt: createdAt }
+  return {
+    ...draft,
+    designer: '',
+    reviewNote: '',
+    changesRequestedAt: null,
+    id: createId(),
+    artwork: [],
+    version: 1,
+    createdAt,
+    updatedAt: createdAt,
+  }
 }
 
 /**
@@ -152,5 +165,27 @@ export const localStoragePostRepository: PostRepository = {
 
   async remove(id) {
     writeAll(readAll().filter((p) => p.id !== id))
+  },
+
+  async requestChanges(id, note, options) {
+    const posts = readAll()
+    const index = posts.findIndex((p) => p.id === id)
+    if (index === -1) throw new NotFoundError()
+    const current = posts[index]
+    if (options?.expectedVersion !== undefined && options.expectedVersion !== current.version) {
+      throw new ConflictError()
+    }
+    const now = new Date().toISOString()
+    const updated: SocialPost = {
+      ...current,
+      status: 'In Design',
+      reviewNote: note.trim(),
+      changesRequestedAt: now,
+      version: current.version + 1,
+      updatedAt: now,
+    }
+    posts[index] = updated
+    writeAll(posts)
+    return updated
   },
 }

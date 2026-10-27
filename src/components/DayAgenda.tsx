@@ -7,7 +7,8 @@ interface DayAgendaProps {
   today: string
   posts: SocialPost[]
   onOpenPost: (post: SocialPost) => void
-  onAddPost: (date: string) => void
+  /** Omitted for people who cannot create posts. */
+  onAddPost?: (date: string) => void
 }
 
 /** Posts scheduled on the date selected in the calendar. */
@@ -19,9 +20,11 @@ export function DayAgenda({ date, today, posts, onOpenPost, onAddPost }: DayAgen
           <h2 className="panel-title">{formatLongDate(date)}</h2>
           <p className="muted small">{relativeDayLabel(date, today)}</p>
         </div>
-        <button type="button" className="button button-secondary button-small" onClick={() => onAddPost(date)}>
-          + Add post
-        </button>
+        {onAddPost && (
+          <button type="button" className="button button-secondary button-small" onClick={() => onAddPost(date)}>
+            + Add post
+          </button>
+        )}
       </div>
       {posts.length === 0 ? (
         <p className="muted">No posts scheduled on this date.</p>

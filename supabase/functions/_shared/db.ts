@@ -2,7 +2,7 @@
 // bypasses RLS, so this client must never be exposed to callers.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2'
 import { serviceRoleKey, supabaseUrl } from './config.ts'
-import type { PostRow } from './model.ts'
+import type { PostRow, TeamMemberRow } from './model.ts'
 
 export type AdminClient = SupabaseClient
 
@@ -12,7 +12,7 @@ export function createAdminClient(): AdminClient {
   })
 }
 
-export type { NotificationEventRow, PostRow, PostStatus } from './model.ts'
+export type { NotificationEventRow, PostRow, PostStatus, TeamMemberRow } from './model.ts'
 
 export interface SettingsRow {
   paused: boolean
@@ -24,6 +24,7 @@ export interface SettingsRow {
   notify_ready_for_review: boolean
   notify_approved: boolean
   notify_deadline: boolean
+  notify_changes_requested: boolean
   deadline_days_ahead: number
   deadline_reminder_time: string
 }
@@ -70,7 +71,7 @@ export async function loadSettings(admin: AdminClient): Promise<SettingsRow> {
 export async function loadPosts(admin: AdminClient): Promise<PostRow[]> {
   const { data, error } = await admin
     .from('posts')
-    .select('id, title, program, publish_date, status, designer, platforms, updated_at')
+    .select('id, title, program, publish_date, status, designer, designer_id, review_note, changes_requested_at, platforms, updated_at')
     .order('publish_date', { ascending: true })
     .order('created_at', { ascending: true })
     .limit(5000)
@@ -89,4 +90,14 @@ export async function loadActiveRecipients(admin: AdminClient): Promise<Recipien
     .order('created_at', { ascending: true })
   if (error) throw new Error(`Could not read email recipients: ${error.message}`)
   return (data ?? []) as RecipientRow[]
+}
+
+/** Active TAE accounts; assigned designers are emailed at their account address. */
+export async function loadActiveTeamMembers(admin: AdminClient): Promise<TeamMemberRow[]> {
+  const { data, error } = await admin
+    .from('team_members')
+    .select('user_id, email, display_name, role, active')
+    .eq('active', true)
+  if (error) throw new Error(`Could not read team members: ${error.message}`)
+  return (data ?? []) as TeamMemberRow[]
 }

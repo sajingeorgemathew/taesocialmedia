@@ -19,6 +19,11 @@ export interface PostRepository {
   create(draft: PostDraft): Promise<SocialPost>
   update(id: string, changes: Partial<PostDraft>, options?: UpdateOptions): Promise<SocialPost>
   remove(id: string): Promise<void>
+  /**
+   * Admin only: sends a Ready for Review / Approved post back to In Design
+   * with feedback for the designer.
+   */
+  requestChanges(id: string, note: string, options?: UpdateOptions): Promise<SocialPost>
 }
 
 /** Uploaded artwork images attached to posts. */
