@@ -113,4 +113,4 @@ export const EMPTY_FILTERS: PostFilters = {
   platform: 'All',
 }
 
-export type ViewName = 'mine' | 'calendar' | 'list' | 'queue'
+export type ViewName = 'overview' | 'mine' | 'calendar' | 'list' | 'queue'

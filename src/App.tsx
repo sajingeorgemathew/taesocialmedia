@@ -1,7 +1,26 @@
+import {
+  CalendarDays,
+  CircleAlert,
+  CircleCheck,
+  CloudCheck,
+  CloudOff,
+  Inbox,
+  Info,
+  LayoutDashboard,
+  List,
+  ListTodo,
+  LoaderCircle,
+  Mail,
+  Menu,
+  Plus,
+  type LucideIcon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth, useTeamMember } from './auth/authContext'
+import { AppSidebar, type NavItem } from './components/AppSidebar'
 import { CalendarView } from './components/CalendarView'
 import { ConfirmDialog } from './components/ConfirmDialog'
+import { Dashboard } from './components/Dashboard'
 import { DayAgenda } from './components/DayAgenda'
 import { EmailRemindersPage } from './components/email/EmailRemindersPage'
 import { FilterBar } from './components/FilterBar'
@@ -10,8 +29,8 @@ import { MyAssignments } from './components/MyAssignments'
 import { NextUpCard } from './components/NextUpCard'
 import { PostEditor, type EditorConflict, type ReviewHandlers, type SaveRequest } from './components/PostEditor'
 import { PostList } from './components/PostList'
-import { StatsGrid } from './components/StatsGrid'
 import { StatusBadge } from './components/StatusBadge'
+import { PageHeader } from './components/ui/PageHeader'
 import { UserMenu } from './components/UserMenu'
 import { WorkQueue } from './components/WorkQueue'
 import { usePosts } from './hooks/usePosts'
@@ -47,12 +66,57 @@ const REFRESH_ON_FOCUS_AFTER_MS = 30_000
 /** Top-level pages. Email Reminders is shown to admins only. */
 type PageName = 'content' | 'email'
 
-const VIEWS: { id: ViewName; label: string; designersOnly?: boolean }[] = [
+const VIEWS: { id: Exclude<ViewName, 'overview'>; label: string; designersOnly?: boolean }[] = [
   { id: 'mine', label: 'My Assignments', designersOnly: true },
   { id: 'calendar', label: 'Calendar' },
   { id: 'list', label: 'All Posts' },
   { id: 'queue', label: 'Next Up / Work Queue' },
 ]
+
+type NavId = ViewName | 'email'
+
+const VIEW_ICONS: Record<Exclude<ViewName, 'overview'>, LucideIcon> = {
+  mine: Inbox,
+  calendar: CalendarDays,
+  list: List,
+  queue: ListTodo,
+}
+
+const PAGE_INFO: Record<NavId, { title: string; description: string; designerDescription?: string }> = {
+  overview: {
+    title: 'Dashboard',
+    description: 'What needs attention across the social media calendar.',
+    designerDescription: 'Your assigned work, change requests and upcoming deadlines.',
+  },
+  mine: { title: 'My Assignments', description: 'Posts where you are the primary designer, grouped by what needs doing.' },
+  calendar: { title: 'Content Calendar', description: 'Plan and track every post by publishing date.' },
+  list: { title: 'All Posts', description: 'Every post, including published history, in date order.' },
+  queue: { title: 'Work Queue', description: 'Unfinished posts in date order, with overdue work first.' },
+  email: {
+    title: 'Email Reminders',
+    description: 'Progress digests, workflow notifications, recipients and delivery history.',
+  },
+}
+
+const SIDEBAR_KEY = 'tae-sidebar-collapsed'
+
+/** Per-browser UI preference; storage may be unavailable (private mode). */
+function readPreference(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
+function writePreference(key: string, value: string | null) {
+  try {
+    if (value === null) localStorage.removeItem(key)
+    else localStorage.setItem(key, value)
+  } catch {
+    // Not saved; the preference only lasts for this visit.
+  }
+}
 
 function App() {
   const {
@@ -76,7 +140,7 @@ function App() {
   const { team, reload: reloadTeam } = useTeam()
   const isAdmin = member.role === 'admin'
   const [today, setToday] = useState(todayKey)
-  const [view, setView] = useState<ViewName>(isAdmin ? 'calendar' : 'mine')
+  const [view, setView] = useState<ViewName>(isAdmin ? 'overview' : 'mine')
   const [filters, setFilters] = useState<PostFilters>(EMPTY_FILTERS)
   const [month, setMonth] = useState(() => startOfMonth(new Date()))
   const [selectedDate, setSelectedDate] = useState(todayKey)
@@ -86,6 +150,8 @@ function App() {
   const [importOpen, setImportOpen] = useState(false)
   const [page, setPage] = useState<PageName>('content')
   const activePage: PageName = isAdmin ? page : 'content'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => readPreference(SIDEBAR_KEY) === '1')
+  const [drawerOpen, setDrawerOpen] = useState(false)
 
   // Keep "today" accurate if the app is left open past midnight.
   useEffect(() => {
@@ -126,6 +192,10 @@ function App() {
     [posts],
   )
   const views = VIEWS.filter((v) => !v.designersOnly || !isAdmin)
+  const myChangesRequested = useMemo(
+    () => posts.filter((p) => p.designerId === member.userId && p.status === 'In Design' && p.changesRequestedAt).length,
+    [posts, member.userId],
+  )
   const statusOptionsFor = useCallback((post: SocialPost) => statusOptions(member, post), [member])
   const filteredPosts = useMemo(() => filterPosts(posts, filters), [posts, filters])
   const selectedDayPosts = useMemo(
@@ -295,195 +365,294 @@ function App() {
     void signOut().catch(reportError)
   }
 
-  return (
-    <div className="app">
-      <header className="app-header">
-        <div className="app-header-inner">
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              TAE
-            </span>
-            <div>
-              <h1>TAE Social Media Manager</h1>
-              <p>Toronto Academy of Education · Content Calendar</p>
-            </div>
-          </div>
-          <div className="header-actions">
-            <span className={`sync-status${saving || refreshing ? ' is-busy' : ''}`} role="status" aria-live="polite">
-              {saving ? 'Saving…' : refreshing ? 'Refreshing…' : error ? 'Not synced' : 'All changes saved'}
-            </span>
-            {isAdmin && (
-              <button type="button" className="button button-accent" onClick={() => openNewPost()}>
-                + Add Post
-              </button>
-            )}
-            <UserMenu
-              member={member}
-              onRefresh={() => void handleRefresh()}
-              onImport={() => setImportOpen(true)}
-              onEmailReminders={() => setPage('email')}
-              onSignOut={handleSignOut}
-            />
-          </div>
+  const navItems: NavItem<NavId>[] = [
+    {
+      id: 'overview',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      section: 'Workspace',
+      count: isAdmin ? stats.byStatus['Ready for Review'] : undefined,
+    },
+    ...views.map((v) => ({
+      id: v.id,
+      label: v.id === 'queue' ? 'Work Queue' : v.label,
+      icon: VIEW_ICONS[v.id],
+      section: 'Workspace',
+      count: v.id === 'mine' ? myChangesRequested : v.id === 'queue' ? stats.overdue : undefined,
+      countTone: 'danger' as const,
+    })),
+    ...(isAdmin ? [{ id: 'email' as const, label: 'Email Reminders', icon: Mail, section: 'Administration' }] : []),
+  ]
+  const activeNav: NavId = activePage === 'email' ? 'email' : view
+  const pageInfo = PAGE_INFO[activeNav]
+
+  const selectNav = (id: NavId) => {
+    if (id === 'email') {
+      setPage('email')
+    } else {
+      setPage('content')
+      setView(id)
+    }
+    setDrawerOpen(false)
+  }
+
+  const toggleCollapsed = () => {
+    setSidebarCollapsed((collapsed) => {
+      writePreference(SIDEBAR_KEY, collapsed ? null : '1')
+      return !collapsed
+    })
+  }
+
+  const syncLabel = saving ? 'Saving…' : refreshing ? 'Refreshing…' : error ? 'Not synced' : 'All changes saved'
+  const SyncIcon = saving || refreshing ? LoaderCircle : error ? CloudOff : CloudCheck
+
+  const headerActions = (
+    <>
+      <span
+        className={`sync-status${saving || refreshing ? ' is-busy' : ''}${error && !saving && !refreshing ? ' is-error' : ''}`}
+        role="status"
+        aria-live="polite"
+      >
+        <SyncIcon aria-hidden="true" />
+        {syncLabel}
+      </span>
+      {isAdmin && (
+        <button type="button" className="button button-primary" onClick={() => openNewPost()}>
+          <Plus aria-hidden="true" />
+          New post
+        </button>
+      )}
+    </>
+  )
+
+  const workflowLegend = (
+    <section className="panel legend">
+      <h2 className="panel-title">Workflow</h2>
+      <ol className="legend-list">
+        {STATUSES.map((status) => (
+          <li key={status}>
+            <StatusBadge status={status} />
+            <span className="legend-count">{stats.byStatus[status]}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )
+
+  const nextUpCard = (
+    <NextUpCard
+      post={nextUp}
+      today={today}
+      onOpen={openPost}
+      onStatusChange={handleStatusChange}
+      onViewQueue={() => setView(isAdmin ? 'queue' : 'mine')}
+      statusOptions={statusOptionsFor}
+      emptyMessage={isAdmin ? undefined : 'Nothing is assigned to you right now.'}
+    />
+  )
+
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="panel">
+          <p className="loading-state" role="status">
+            <span className="spinner" aria-hidden="true" /> Loading shared posts…
+          </p>
         </div>
-        {isAdmin && (
-          <nav className="app-nav" aria-label="Pages">
-            <div className="app-nav-inner">
-              <button
-                type="button"
-                className={`app-nav-tab${activePage === 'content' ? ' is-active' : ''}`}
-                aria-current={activePage === 'content' ? 'page' : undefined}
-                onClick={() => setPage('content')}
-              >
-                Content Calendar
-              </button>
-              <button
-                type="button"
-                className={`app-nav-tab${activePage === 'email' ? ' is-active' : ''}`}
-                aria-current={activePage === 'email' ? 'page' : undefined}
-                onClick={() => setPage('email')}
-              >
-                Email Reminders
-              </button>
-            </div>
-          </nav>
-        )}
-      </header>
-
-      {activePage === 'email' ? (
-        <main className="app-main">
-          <EmailRemindersPage onNotify={showToast} />
-        </main>
-      ) : (
-        <main className="app-main">
-          {error && (
-            <div className="alert alert-row" role="alert">
-              <span>Could not load posts: {error}</span>
-              <button type="button" className="button button-ghost button-small" onClick={() => void reload()} disabled={refreshing}>
-                {refreshing ? 'Retrying…' : 'Try again'}
-              </button>
-            </div>
-          )}
-          {isAdmin && unlinkedCount > 0 && (
-            <div className="alert alert-row alert-info" role="status">
-              <span>
-                {unlinkedCount} unfinished post{unlinkedCount === 1 ? ' has' : 's have'} a designer name that is not linked
-                to a designer account (shown as “not linked”). Open {unlinkedCount === 1 ? 'it' : 'them'} and choose the
-                designer.
-              </span>
-              <button
-                type="button"
-                className="button button-ghost button-small"
-                onClick={() => {
-                  setView('list')
-                  setFilters(EMPTY_FILTERS)
-                }}
-              >
-                Show all posts
-              </button>
-            </div>
-          )}
-
-          <StatsGrid stats={stats} />
-
-          <div className="layout">
-            <aside className="sidebar">
-              <NextUpCard
-                post={nextUp}
+      )
+    }
+    switch (view) {
+      case 'overview':
+        return (
+          <Dashboard
+            posts={posts}
+            stats={stats}
+            today={today}
+            isAdmin={isAdmin}
+            userId={member.userId}
+            nextUp={nextUp}
+            onOpen={openPost}
+            onStatusChange={handleStatusChange}
+            statusOptions={statusOptionsFor}
+            onViewQueue={() => setView(isAdmin ? 'queue' : 'mine')}
+            onShowStatus={(status) => {
+              setFilters({ ...EMPTY_FILTERS, status })
+              setView('list')
+            }}
+            onShowCalendar={() => setView('calendar')}
+          />
+        )
+      case 'mine':
+        return (
+          <div className="split-layout">
+            <section className="panel split-main">
+              <MyAssignments
+                posts={posts}
+                userId={member.userId}
                 today={today}
                 onOpen={openPost}
-                onStatusChange={handleStatusChange}
-                onViewQueue={() => setView(isAdmin ? 'queue' : 'mine')}
-                statusOptions={statusOptionsFor}
-                emptyMessage={isAdmin ? undefined : 'Nothing is assigned to you right now.'}
+                onStatusChange={(post, status) => void handleStatusChange(post, status)}
               />
-              {view === 'calendar' && (
-                <DayAgenda
-                  date={selectedDate}
-                  today={today}
-                  posts={selectedDayPosts}
-                  onOpenPost={openPost}
-                  onAddPost={isAdmin ? openNewPost : undefined}
-                />
-              )}
-              <section className="panel legend">
-                <h2 className="panel-title">Workflow</h2>
-                <ol className="legend-list">
-                  {STATUSES.map((status) => (
-                    <li key={status}>
-                      <StatusBadge status={status} />
-                      <span className="muted small">{stats.byStatus[status]}</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
+            </section>
+            <aside className="split-rail">
+              {nextUpCard}
+              {workflowLegend}
             </aside>
+          </div>
+        )
+      case 'calendar':
+        return (
+          <div className="split-layout">
+            <section className="panel split-main calendar-panel">
+              <CalendarView
+                posts={filteredPosts}
+                today={today}
+                month={month}
+                selectedDate={selectedDate}
+                onMonthChange={setMonth}
+                onSelectDate={setSelectedDate}
+                onOpenPost={openPost}
+                onAddPost={isAdmin ? openNewPost : undefined}
+              />
+            </section>
+            <aside className="split-rail">
+              <DayAgenda
+                date={selectedDate}
+                today={today}
+                posts={selectedDayPosts}
+                onOpenPost={openPost}
+                onAddPost={isAdmin ? openNewPost : undefined}
+              />
+              {nextUpCard}
+              {workflowLegend}
+            </aside>
+          </div>
+        )
+      case 'list':
+        return (
+          <section className="panel panel-flush">
+            <PostList
+              posts={filteredPosts}
+              today={today}
+              onOpen={openPost}
+              onStatusChange={handleStatusChange}
+              statusOptions={statusOptionsFor}
+              onDuplicate={isAdmin ? handleDuplicate : undefined}
+              onDelete={isAdmin ? setPendingDelete : undefined}
+            />
+          </section>
+        )
+      case 'queue':
+        return (
+          <section className="panel">
+            <WorkQueue
+              posts={filteredPosts}
+              today={today}
+              onOpen={openPost}
+              onStatusChange={handleStatusChange}
+              statusOptions={statusOptionsFor}
+            />
+          </section>
+        )
+    }
+  }
 
-            <section className="content panel">
-              <nav className="view-tabs" aria-label="Views">
-                {views.map((v) => (
-                  <button
-                    key={v.id}
-                    type="button"
-                    className={`view-tab${view === v.id ? ' is-active' : ''}`}
-                    aria-current={view === v.id ? 'page' : undefined}
-                    onClick={() => setView(v.id)}
-                  >
-                    {v.label}
+  const ToastIcon = toast?.tone === 'error' ? CircleAlert : CircleCheck
+
+  return (
+    <div className={`app-shell${sidebarCollapsed ? ' is-collapsed' : ''}`}>
+      <AppSidebar
+        items={navItems}
+        activeId={activeNav}
+        onSelect={selectNav}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleCollapsed}
+        drawerOpen={drawerOpen}
+        onCloseDrawer={() => setDrawerOpen(false)}
+        footer={
+          <UserMenu
+            member={member}
+            compact={sidebarCollapsed}
+            onRefresh={() => void handleRefresh()}
+            onImport={() => setImportOpen(true)}
+            onEmailReminders={() => selectNav('email')}
+            onSignOut={handleSignOut}
+          />
+        }
+      />
+
+      <div className="app-main-column">
+        <div className="topbar">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open menu"
+            aria-expanded={drawerOpen}
+          >
+            <Menu aria-hidden="true" />
+          </button>
+          <img src="/logo_final_T.png" alt="" className="topbar-logo" width={26} height={26} />
+          <span className="topbar-title">{pageInfo.title}</span>
+          {isAdmin && (
+            <button type="button" className="icon-button topbar-add" onClick={() => openNewPost()} aria-label="New post">
+              <Plus aria-hidden="true" />
+            </button>
+          )}
+        </div>
+
+        <main className="page">
+          <PageHeader
+            title={pageInfo.title}
+            description={isAdmin || !pageInfo.designerDescription ? pageInfo.description : pageInfo.designerDescription}
+            actions={headerActions}
+          />
+
+          {activePage === 'email' ? (
+            <EmailRemindersPage onNotify={showToast} />
+          ) : (
+            <div className="page-body">
+              {error && (
+                <div className="alert alert-row" role="alert">
+                  <span>
+                    <CircleAlert aria-hidden="true" />
+                    Could not load posts: {error}
+                  </span>
+                  <button type="button" className="button button-ghost button-small" onClick={() => void reload()} disabled={refreshing}>
+                    {refreshing ? 'Retrying…' : 'Try again'}
                   </button>
-                ))}
-              </nav>
+                </div>
+              )}
+              {isAdmin && unlinkedCount > 0 && (
+                <div className="alert alert-row alert-info" role="status">
+                  <span>
+                    <Info aria-hidden="true" />
+                    {unlinkedCount} unfinished post{unlinkedCount === 1 ? ' has' : 's have'} a designer name that is not
+                    linked to a designer account (shown as “not linked”). Open {unlinkedCount === 1 ? 'it' : 'them'} and
+                    choose the designer.
+                  </span>
+                  <button
+                    type="button"
+                    className="button button-ghost button-small"
+                    onClick={() => {
+                      setView('list')
+                      setFilters(EMPTY_FILTERS)
+                    }}
+                  >
+                    Show all posts
+                  </button>
+                </div>
+              )}
 
-              {view !== 'mine' && (
+              {(view === 'calendar' || view === 'list' || view === 'queue') && (
                 <FilterBar filters={filters} onChange={setFilters} shown={filteredPosts.length} total={posts.length} />
               )}
 
-              {loading ? (
-                <p className="empty-state" role="status">
-                  <span className="spinner" aria-hidden="true" /> Loading shared posts…
-                </p>
-              ) : view === 'mine' ? (
-                <MyAssignments
-                  posts={posts}
-                  userId={member.userId}
-                  today={today}
-                  onOpen={openPost}
-                  onStatusChange={(post, status) => void handleStatusChange(post, status)}
-                />
-              ) : view === 'calendar' ? (
-                <CalendarView
-                  posts={filteredPosts}
-                  today={today}
-                  month={month}
-                  selectedDate={selectedDate}
-                  onMonthChange={setMonth}
-                  onSelectDate={setSelectedDate}
-                  onOpenPost={openPost}
-                  onAddPost={isAdmin ? openNewPost : undefined}
-                />
-              ) : view === 'list' ? (
-                <PostList
-                  posts={filteredPosts}
-                  today={today}
-                  onOpen={openPost}
-                  onStatusChange={handleStatusChange}
-                  statusOptions={statusOptionsFor}
-                  onDuplicate={isAdmin ? handleDuplicate : undefined}
-                  onDelete={isAdmin ? setPendingDelete : undefined}
-                />
-              ) : (
-                <WorkQueue
-                  posts={filteredPosts}
-                  today={today}
-                  onOpen={openPost}
-                  onStatusChange={handleStatusChange}
-                  statusOptions={statusOptionsFor}
-                />
-              )}
-            </section>
-          </div>
+              {renderContent()}
+            </div>
+          )}
         </main>
-      )}
+      </div>
 
       {editor && (
         <PostEditor
@@ -528,7 +697,8 @@ function App() {
 
       {toast && (
         <div key={toast.id} className={`toast${toast.tone === 'error' ? ' toast-error' : ''}`} role={toast.tone === 'error' ? 'alert' : 'status'}>
-          {toast.message}
+          <ToastIcon aria-hidden="true" />
+          <span>{toast.message}</span>
         </div>
       )}
     </div>

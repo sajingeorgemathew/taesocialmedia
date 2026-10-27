@@ -1,10 +1,17 @@
+import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
 import { useMemo } from 'react'
 import { PROGRAM_SHORT, type SocialPost } from '../types'
 import { addMonths, buildMonthGrid, formatLongDate, formatMonthLabel, parseDateKey, startOfMonth } from '../utils/date'
 import { isOverdue, sortByDate, statusSlug } from '../utils/posts'
+import { PlatformMarks } from './ui/PlatformMarks'
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MAX_CHIPS = 3
+
+/** "YYYY-MM", the prefix shared by every date key in the month. */
+function formatMonthKey(month: Date): string {
+  return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}`
+}
 
 interface CalendarViewProps {
   posts: SocialPost[]
@@ -41,23 +48,31 @@ export function CalendarView({
   }, [posts])
 
   const monthIndex = month.getMonth()
+  const monthPrefix = formatMonthKey(month)
+  const monthCount = posts.filter((p) => p.publishDate.startsWith(monthPrefix)).length
 
   return (
     <section className="calendar" aria-label="Content calendar">
       <div className="calendar-toolbar">
-        <h2 className="calendar-month">{formatMonthLabel(month)}</h2>
+        <div className="calendar-heading">
+          <h2 className="calendar-month">{formatMonthLabel(month)}</h2>
+          <span className="muted small">
+            {monthCount} post{monthCount === 1 ? '' : 's'}
+          </span>
+        </div>
         <div className="calendar-nav">
           <button
             type="button"
-            className="button button-ghost"
+            className="icon-button icon-button-bordered"
             onClick={() => onMonthChange(addMonths(month, -1))}
             aria-label="Previous month"
+            data-tooltip="Previous month"
           >
-            ‹ Prev
+            <ChevronLeft aria-hidden="true" />
           </button>
           <button
             type="button"
-            className="button button-ghost"
+            className="button button-secondary button-small"
             onClick={() => {
               onMonthChange(startOfMonth(parseDateKey(today)))
               onSelectDate(today)
@@ -67,11 +82,12 @@ export function CalendarView({
           </button>
           <button
             type="button"
-            className="button button-ghost"
+            className="icon-button icon-button-bordered"
             onClick={() => onMonthChange(addMonths(month, 1))}
             aria-label="Next month"
+            data-tooltip="Next month"
           >
-            Next ›
+            <ChevronRight aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -94,6 +110,7 @@ export function CalendarView({
                 date.getMonth() !== monthIndex && 'is-outside',
                 dateKey === today && 'is-today',
                 dateKey === selectedDate && 'is-selected',
+                dayPosts.length > 0 && 'has-posts',
               ]
                 .filter(Boolean)
                 .join(' ')
@@ -129,7 +146,7 @@ export function CalendarView({
                         aria-label={`Add post on ${formatLongDate(dateKey)}`}
                         title="Add post on this date"
                       >
-                        +
+                        <Plus aria-hidden="true" />
                       </button>
                     )}
                   </div>
@@ -145,14 +162,22 @@ export function CalendarView({
                         }}
                         title={`${post.title} — ${post.status}`}
                       >
-                        <span className="post-chip-program">{PROGRAM_SHORT[post.program]}</span>
+                        <span className="post-chip-top">
+                          <span className="post-chip-program">{PROGRAM_SHORT[post.program]}</span>
+                          <PlatformMarks platforms={post.platforms} size="small" />
+                        </span>
                         <span className="post-chip-title">{post.title}</span>
                       </button>
                     ))}
-                    {dayPosts.length > MAX_CHIPS && (
-                      <span className="more-posts">+{dayPosts.length - MAX_CHIPS} more</span>
-                    )}
+                    {dayPosts.length > MAX_CHIPS && <span className="more-posts">+{dayPosts.length - MAX_CHIPS} more</span>}
                   </div>
+                  {dayPosts.length > 0 && (
+                    <div className="calendar-day-dots" aria-hidden="true">
+                      {dayPosts.slice(0, 4).map((post) => (
+                        <span key={post.id} className={`status-dot status-${statusSlug(post.status)}`} />
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}

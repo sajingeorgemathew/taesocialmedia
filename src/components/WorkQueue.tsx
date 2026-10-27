@@ -1,7 +1,10 @@
+import { CircleCheck } from 'lucide-react'
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
 import { designerLabel, getWorkQueue, isOverdue, nextStatus } from '../utils/posts'
 import { StatusSelect } from './StatusBadge'
+import { EmptyState } from './ui/EmptyState'
+import { PlatformMarks } from './ui/PlatformMarks'
 
 interface WorkQueueProps {
   posts: SocialPost[]
@@ -19,7 +22,11 @@ export function WorkQueue({ posts, today, onOpen, onStatusChange, statusOptions 
   const upcoming = queue.filter((p) => !isOverdue(p, today))
 
   if (queue.length === 0) {
-    return <p className="empty-state">Nothing left to do — all matching posts are published.</p>
+    return (
+      <EmptyState icon={CircleCheck} title="All caught up">
+        Nothing left to do — all matching posts are published.
+      </EmptyState>
+    )
   }
 
   const renderItem = (post: SocialPost, position: number) => {
@@ -27,27 +34,25 @@ export function WorkQueue({ posts, today, onOpen, onStatusChange, statusOptions 
     const next = nextStatus(post.status)
     const advanceTo = next && options.includes(next) ? next : null
     return (
-      <li key={post.id} className={`queue-item${position === 0 ? ' is-next' : ''}`}>
+      <li key={post.id} className={`queue-item${position === 0 ? ' is-next' : ''}${isOverdue(post, today) ? ' is-overdue' : ''}`}>
         <span className="queue-position" aria-hidden="true">
           {position + 1}
         </span>
         <button type="button" className="queue-main" onClick={() => onOpen(post)}>
           <span className="queue-date">
             {formatLongDate(post.publishDate)} · {relativeDayLabel(post.publishDate, today)}
+            {position === 0 && <span className="pill pill-gold">Next up</span>}
           </span>
           <span className="queue-title">{post.title}</span>
           <span className="queue-meta">
             {PROGRAM_SHORT[post.program]} · {post.format} · {designerLabel(post, 'Designer unassigned')}
+            <PlatformMarks platforms={post.platforms} size="small" />
           </span>
         </button>
         <div className="queue-actions">
           <StatusSelect status={post.status} options={options} onChange={(status) => onStatusChange(post, status)} />
           {advanceTo && (
-            <button
-              type="button"
-              className="button button-secondary button-small"
-              onClick={() => onStatusChange(post, advanceTo)}
-            >
+            <button type="button" className="button button-secondary button-small" onClick={() => onStatusChange(post, advanceTo)}>
               {advanceTo === 'Published' ? 'Mark Published' : `→ ${advanceTo}`}
             </button>
           )}
@@ -60,16 +65,18 @@ export function WorkQueue({ posts, today, onOpen, onStatusChange, statusOptions 
     <div className="work-queue">
       {overdue.length > 0 && (
         <section>
-          <h3 className="queue-heading queue-heading-danger">Overdue ({overdue.length})</h3>
+          <h3 className="queue-heading queue-heading-danger">
+            Overdue <span className="queue-heading-count">{overdue.length}</span>
+          </h3>
           <ol className="queue-list">{overdue.map((post, i) => renderItem(post, i))}</ol>
         </section>
       )}
       {upcoming.length > 0 && (
         <section>
-          <h3 className="queue-heading">Upcoming ({upcoming.length})</h3>
-          <ol className="queue-list">
-            {upcoming.map((post, i) => renderItem(post, overdue.length + i))}
-          </ol>
+          <h3 className="queue-heading">
+            Upcoming <span className="queue-heading-count">{upcoming.length}</span>
+          </h3>
+          <ol className="queue-list">{upcoming.map((post, i) => renderItem(post, overdue.length + i))}</ol>
         </section>
       )}
     </div>

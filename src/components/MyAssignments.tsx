@@ -1,7 +1,10 @@
+import { Inbox, Info } from 'lucide-react'
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
 import { isOverdue, sortByDate } from '../utils/posts'
 import { StatusBadge } from './StatusBadge'
+import { EmptyState } from './ui/EmptyState'
+import { PlatformMarks } from './ui/PlatformMarks'
 
 interface MyAssignmentsProps {
   posts: SocialPost[]
@@ -60,25 +63,32 @@ export function MyAssignments({ posts, userId, today, onOpen, onStatusChange }: 
 
   return (
     <div className="my-assignments">
-      <p className="muted small">
+      <p className="assignments-intro">
+        <Info aria-hidden="true" />
         Posts where you are the primary designer. You can also help on any unfinished post from the Calendar or All
         Posts.
       </p>
-      {mine.length === 0 && <p className="empty-state">Nothing is assigned to you right now.</p>}
+      {mine.length === 0 && (
+        <EmptyState icon={Inbox} title="You're all clear">
+          Nothing is assigned to you right now.
+        </EmptyState>
+      )}
       {sections
         .filter((s) => s.posts.length > 0)
         .map((section) => (
-          <section key={section.title}>
-            <h3 className={`queue-heading${section.tone === 'danger' ? ' queue-heading-danger' : ''}`}>
-              {section.title} ({section.posts.length})
-            </h3>
-            <p className="muted small assignment-description">{section.description}</p>
+          <section key={section.title} className="assignment-section">
+            <div className="assignment-section-heading">
+              <h3 className={`queue-heading${section.tone === 'danger' ? ' queue-heading-danger' : ''}`}>
+                {section.title} <span className="queue-heading-count">{section.posts.length}</span>
+              </h3>
+              <p className="muted small assignment-description">{section.description}</p>
+            </div>
             <ol className="queue-list">
               {section.posts.map((post) => {
                 const action = primaryAction(post)
                 const overdue = isOverdue(post, today)
                 return (
-                  <li key={post.id} className="queue-item">
+                  <li key={post.id} className={`queue-item${section.tone === 'danger' ? ' is-changes' : ''}`}>
                     <button type="button" className="queue-main" onClick={() => onOpen(post)}>
                       <span className="queue-date">
                         {formatLongDate(post.publishDate)} · {relativeDayLabel(post.publishDate, today)}
@@ -86,7 +96,8 @@ export function MyAssignments({ posts, userId, today, onOpen, onStatusChange }: 
                       </span>
                       <span className="queue-title">{post.title}</span>
                       <span className="queue-meta">
-                        {PROGRAM_SHORT[post.program]} · {post.format} · {post.platforms.join(', ') || 'No platforms'}
+                        {PROGRAM_SHORT[post.program]} · {post.format}
+                        <PlatformMarks platforms={post.platforms} size="small" />
                       </span>
                       {post.changesRequestedAt && post.reviewNote && (
                         <span className="assignment-note">“{post.reviewNote}”</span>

@@ -1,3 +1,4 @@
+import { CalendarClock, Clock, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { addSchedule, deleteSchedule, updateSchedule } from '../../email/emailRepository'
 import { formatClock } from '../../email/schedule'
@@ -75,22 +76,39 @@ function ScheduleRow({
   return (
     <li className={`email-list-item${schedule.active ? '' : ' is-disabled'}`}>
       <div className="email-list-main">
-        <span className="email-time">{formatClock(schedule.sendTime)}</span>
+        <span className="email-time">
+          <Clock aria-hidden="true" />
+          {formatClock(schedule.sendTime)}
+        </span>
         <span className="muted small">
           {schedule.label || 'No label'}
           {!schedule.active && ' · Off'}
         </span>
       </div>
       <div className="email-list-actions">
-        <label className="checkbox">
-          <input type="checkbox" checked={schedule.active} disabled={busy} onChange={onToggle} />
+        <label className="switch">
+          <input type="checkbox" role="switch" checked={schedule.active} disabled={busy} onChange={onToggle} />
           On
         </label>
-        <button type="button" className="button button-ghost button-small" disabled={busy} onClick={() => setEditing(true)}>
-          Edit
+        <button
+          type="button"
+          className="icon-button"
+          disabled={busy}
+          onClick={() => setEditing(true)}
+          aria-label={`Edit ${formatClock(schedule.sendTime)}`}
+          data-tooltip="Edit"
+        >
+          <Pencil aria-hidden="true" />
         </button>
-        <button type="button" className="button button-ghost button-small button-danger-text" disabled={busy} onClick={onRemove}>
-          Remove
+        <button
+          type="button"
+          className="icon-button is-danger"
+          disabled={busy}
+          onClick={onRemove}
+          aria-label={`Remove ${formatClock(schedule.sendTime)}`}
+          data-tooltip="Remove"
+        >
+          <Trash2 aria-hidden="true" />
         </button>
       </div>
     </li>
@@ -164,13 +182,15 @@ export function SchedulePanel({ settings, schedules, onSchedulesChange, onSaveSe
       <div className="panel-heading">
         <div>
           <h2 id="email-schedule-title" className="panel-title">
+            <CalendarClock aria-hidden="true" />
             Progress digest schedule
           </h2>
           <p className="muted small">Times are Toronto time (America/Toronto) and follow daylight saving automatically.</p>
         </div>
-        <label className="checkbox email-switch">
+        <label className="switch email-switch">
           <input
             type="checkbox"
+            role="switch"
             checked={settings.digestEnabled}
             onChange={(e) =>
               void onSaveSettings({ digestEnabled: e.target.checked }, e.target.checked ? 'Progress digest turned on' : 'Progress digest turned off')
@@ -236,6 +256,7 @@ export function SchedulePanel({ settings, schedules, onSchedulesChange, onSaveSe
             <input type="text" value={newLabel} maxLength={60} placeholder="e.g. Afternoon" onChange={(e) => setNewLabel(e.target.value)} />
           </label>
           <button type="submit" className="button button-secondary" disabled={adding || !newTime}>
+            <Plus aria-hidden="true" />
             {adding ? 'Adding…' : 'Add time'}
           </button>
         </form>

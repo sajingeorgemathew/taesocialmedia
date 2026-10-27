@@ -1,3 +1,4 @@
+import { Pencil, Trash2, UserPlus, Users } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { addRecipient, deleteRecipient, isValidEmail, normalizeEmail, updateRecipient } from '../../email/emailRepository'
 import type { EmailRecipient } from '../../email/types'
@@ -128,6 +129,7 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
       <div className="panel-heading">
         <div>
           <h2 id="email-recipients-title" className="panel-title">
+            <Users aria-hidden="true" />
             Recipients
           </h2>
           <p className="muted small">
@@ -136,7 +138,7 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
             never emailed.
           </p>
         </div>
-        <span className="pill">{recipients.filter((r) => r.active).length} active</span>
+        <span className="pill pill-navy">{recipients.filter((r) => r.active).length} active</span>
       </div>
 
       <form className="email-inline-form" onSubmit={(e) => void handleAdd(e)} noValidate>
@@ -161,6 +163,7 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
           <input type="text" value={name} maxLength={120} placeholder="e.g. Designer" onChange={(e) => setName(e.target.value)} />
         </label>
         <button type="submit" className="button button-primary" disabled={adding}>
+          <UserPlus aria-hidden="true" />
           {adding ? 'Adding…' : 'Add recipient'}
         </button>
       </form>
@@ -191,14 +194,16 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
             return (
               <li key={r.id} className={`email-list-item${r.active ? '' : ' is-disabled'}`}>
                 <div className="email-list-main">
-                  <span className="email-address">{r.email}</span>
+                  <span className="email-address">
+                    {r.email}
+                    {!r.active && <span className="pill">Disabled</span>}
+                  </span>
                   <span className="muted small">
                     {r.name || 'No name'}
-                    {!r.active && ' · Disabled'}
                   </span>
                 </div>
                 <div className="email-list-options" role="group" aria-label={`Email types for ${r.email}`}>
-                  <label className="checkbox">
+                  <label className="flag-chip">
                     <input
                       type="checkbox"
                       checked={r.receivesDigest}
@@ -209,7 +214,7 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
                     />
                     Digest
                   </label>
-                  <label className="checkbox">
+                  <label className="flag-chip">
                     <input
                       type="checkbox"
                       checked={r.receivesNotifications}
@@ -224,7 +229,7 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
                     />
                     Workflow
                   </label>
-                  <label className="checkbox" title="A copy of every assignment email">
+                  <label className="flag-chip" title="A copy of every assignment email">
                     <input
                       type="checkbox"
                       checked={r.receivesAssignments}
@@ -241,8 +246,15 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
                   </label>
                 </div>
                 <div className="email-list-actions">
-                  <button type="button" className="button button-ghost button-small" disabled={busy} onClick={() => setEditingId(r.id)}>
-                    Edit
+                  <button
+                    type="button"
+                    className="icon-button"
+                    disabled={busy}
+                    onClick={() => setEditingId(r.id)}
+                    aria-label={`Edit ${r.email}`}
+                    data-tooltip="Edit name"
+                  >
+                    <Pencil aria-hidden="true" />
                   </button>
                   <button
                     type="button"
@@ -254,11 +266,13 @@ export function RecipientsPanel({ recipients, onChange, onNotify }: RecipientsPa
                   </button>
                   <button
                     type="button"
-                    className="button button-ghost button-small button-danger-text"
+                    className="icon-button is-danger"
                     disabled={busy}
                     onClick={() => setPendingRemove(r)}
+                    aria-label={`Remove ${r.email}`}
+                    data-tooltip="Remove"
                   >
-                    Remove
+                    <Trash2 aria-hidden="true" />
                   </button>
                 </div>
               </li>

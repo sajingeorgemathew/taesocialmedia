@@ -558,3 +558,60 @@ while the account is active.
   (`npm run test:email`)
 - npm run lint passes
 - npm run build passes
+
+---
+
+# Feature 5 — Modern SaaS UI/UX Redesign
+
+## Objective
+
+Turn the working calendar into a polished internal SaaS product for the office
+and designers **without changing what it does**. Presentation layer only:
+business logic, database, RLS, roles, auth, email routing/queues/Cron and data
+are frozen. Full plan, audit and preservation checklist:
+[UI_REDESIGN.md](UI_REDESIGN.md).
+
+## Scope
+
+1. **Design system** — tokens (navy `#122C4F`, gold `#C9A24E` used sparingly,
+   warm neutral `#F7F5F0`), Inter typography, buttons, form controls, cards,
+   badges, dialogs, menus, toasts, tooltips, empty and loading states.
+2. **App shell** — collapsible sidebar with the TAE logo, grouped navigation,
+   role-aware items, identity and role badge, mobile drawer, page headers.
+3. **Dashboard** — statistics, pending actions, awaiting review, changes
+   requested, upcoming deadlines and Next Up, from the existing calculations.
+4. **Calendar, All Posts, Work Queue, My Assignments** — restyled with status
+   colours, platform indicators and responsive layouts; same filters and
+   interactions.
+5. **Post editor** — sectioned form with a workflow side panel (status,
+   primary designer, review). Every field, rule and conflict notice kept.
+6. **Email Reminders** — restyled settings, recipients, schedules, test email
+   and delivery history; same behaviour.
+7. **Auth screens** — sign-in, loading, access denied, errors.
+8. **Email templates** — the real TAE logo (served from the configured app
+   URL), refreshed header/footer/buttons; same content, events and routing.
+9. **Tests** — Vitest + Testing Library for permission-sensitive UI; email
+   template content tests; `npm run dev:mock` local preview with demo data.
+
+## Local preview and tests
+
+- `npm run dev:mock` — the app with demo data at http://localhost:5180
+  (`/?as=admin`, `/?as=designer`, `/?as=none`, `/?reset`). Never contacts
+  Supabase or Resend; production keys are not loaded.
+- `npm run email:preview` — renders every email to `dev/email-preview/`.
+- `npm test` — frontend tests; `npm run test:email` — email routing/templates.
+
+## Out of scope
+
+Schema, migrations, RLS, Edge Function behaviour (routing, queue, retries,
+idempotency, logging), Cron, Resend configuration, roles and permissions,
+dark mode, new routes or state libraries.
+
+## Acceptance Criteria
+
+- Every control, field, filter and workflow listed in UI_REDESIGN.md is
+  present and behaves as before, for admins and designers
+- `npm run lint`, `npm run build`, `npm test` and `npm run test:email` pass
+- Desktop, tablet and mobile layouts reviewed in the browser
+- No change under `supabase/migrations`; Edge Function changes limited to
+  email presentation (`_shared/layout.ts`, markup in `_shared/emails.ts`)

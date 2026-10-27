@@ -1,0 +1,12 @@
+/* Design system entry point. Order: tokens, base, shared components, areas. */
+@import './tokens.css';
+@import './base.css';
+@import './components.css';
+@import './shell.css';
+@import './dashboard.css';
+@import './calendar.css';
+@import './posts.css';
+@import './editor.css';
+@import './email.css';
+@import './auth.css';
+@import './import.css';

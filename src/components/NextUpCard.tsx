@@ -1,7 +1,9 @@
+import { ArrowRight, Sparkles } from 'lucide-react'
 import { PROGRAM_SHORT, type PostStatus, type SocialPost } from '../types'
 import { formatLongDate, relativeDayLabel } from '../utils/date'
 import { designerLabel, isOverdue, nextStatus } from '../utils/posts'
 import { StatusBadge } from './StatusBadge'
+import { PlatformMarks } from './ui/PlatformMarks'
 
 interface NextUpCardProps {
   post: SocialPost | null
@@ -26,8 +28,11 @@ export function NextUpCard({
   if (!post) {
     return (
       <section className="panel next-up next-up-empty">
-        <h2 className="panel-title">Next up</h2>
-        <p>{emptyMessage}</p>
+        <h2 className="panel-title">
+          <Sparkles aria-hidden="true" />
+          Next up
+        </h2>
+        <p className="muted small">{emptyMessage}</p>
       </section>
     )
   }
@@ -39,35 +44,37 @@ export function NextUpCard({
   return (
     <section className={`panel next-up${overdue ? ' is-overdue' : ''}`}>
       <div className="panel-heading">
-        <h2 className="panel-title">Next up</h2>
+        <h2 className="panel-title">
+          <Sparkles aria-hidden="true" />
+          Next up
+        </h2>
         <button type="button" className="link-button" onClick={onViewQueue}>
-          View queue
+          View queue <ArrowRight aria-hidden="true" />
         </button>
       </div>
       <p className="next-up-date">
         {formatLongDate(post.publishDate)}
-        <span className={`pill${overdue ? ' pill-danger' : ''}`}>
+        <span className={`pill${overdue ? ' pill-danger' : ' pill-navy'}`}>
           {overdue ? `Overdue · ${relativeDayLabel(post.publishDate, today)}` : relativeDayLabel(post.publishDate, today)}
         </span>
       </p>
       <h3 className="next-up-title">{post.title}</h3>
       <p className="next-up-meta">
-        {PROGRAM_SHORT[post.program]} · {post.format} · {post.platforms.join(', ') || 'No platforms'}
+        <span>
+          {PROGRAM_SHORT[post.program]} · {post.format}
+        </span>
+        <PlatformMarks platforms={post.platforms} size="small" />
       </p>
       <div className="next-up-status">
         <StatusBadge status={post.status} />
-        <span className="muted">{post.designer ? `Primary designer: ${designerLabel(post)}` : 'Designer unassigned'}</span>
+        <span className="muted small">{post.designer ? `Primary designer: ${designerLabel(post)}` : 'Designer unassigned'}</span>
       </div>
       <div className="next-up-actions">
-        <button type="button" className="button button-secondary" onClick={() => onOpen(post)}>
+        <button type="button" className="button button-secondary button-small" onClick={() => onOpen(post)}>
           Open post
         </button>
         {advanceTo && (
-          <button
-            type="button"
-            className="button button-primary"
-            onClick={() => onStatusChange(post, advanceTo)}
-          >
+          <button type="button" className="button button-primary button-small" onClick={() => onStatusChange(post, advanceTo)}>
             {advanceTo === 'Published' ? 'Mark Published' : `Move to ${advanceTo}`}
           </button>
         )}
