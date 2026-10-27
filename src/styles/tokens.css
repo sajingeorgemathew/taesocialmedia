@@ -1,0 +1,147 @@
+/* Design tokens — TAE Social Media Manager.
+   Navy carries the brand; gold is an accent used sparingly (logo, active
+   navigation marker). Status colours are shared by badges, chips, the
+   calendar and the email templates (supabase/functions/_shared/layout.ts). */
+:root {
+  /* Brand */
+  --navy-950: #0a1a30;
+  --navy-900: #0f243f;
+  --navy-800: #122c4f;
+  --navy-700: #1b3d68;
+  --navy-600: #284f82;
+  --navy-500: #3a659e;
+  --navy-200: #c9d5e6;
+  --navy-100: #e4eaf3;
+  --navy-50: #f1f4f9;
+  --gold-600: #a8843a;
+  --gold-500: #c9a24e;
+  --gold-100: #f6eedb;
+  --gold-50: #fbf7ec;
+
+  /* Neutrals (warm) */
+  --canvas: #f7f5f0;
+  --surface: #ffffff;
+  --surface-subtle: #fbfaf7;
+  --surface-muted: #f3f1ec;
+  --surface-hover: #f5f3ee;
+  --border: #e7e3da;
+  --border-strong: #d6d0c4;
+  --border-subtle: #efece5;
+
+  /* Text */
+  --text: #17233a;
+  --text-secondary: #4a566b;
+  --text-muted: #6b7587;
+  --text-faint: #98a0ae;
+  --text-on-brand: #ffffff;
+
+  /* Feedback */
+  --danger: #b42318;
+  --danger-strong: #912018;
+  --danger-bg: #fdeeec;
+  --danger-border: #f6cbc6;
+  --warning: #a15c07;
+  --warning-bg: #fef4e4;
+  --warning-border: #f5dcb0;
+  --success: #15803d;
+  --success-bg: #e9f6ee;
+  --success-border: #bfe3cc;
+  --info: var(--navy-700);
+  --info-bg: var(--navy-50);
+  --info-border: var(--navy-100);
+
+  /* Workflow statuses */
+  --planned-fg: #536179;
+  --planned-bg: #eef1f5;
+  --planned-border: #d7dde7;
+  --design-fg: #6045c9;
+  --design-bg: #f1edfd;
+  --design-border: #dcd3f8;
+  --review-fg: #b05a06;
+  --review-bg: #fdf2e2;
+  --review-border: #f4d8ae;
+  --approved-fg: #0f766e;
+  --approved-bg: #e4f4f1;
+  --approved-border: #b9e2db;
+  --published-fg: #1f7a3c;
+  --published-bg: #e8f5ec;
+  --published-border: #c1e3cb;
+
+  /* Platforms */
+  --facebook: #1877f2;
+  --instagram: #c13584;
+  --linkedin: #0a66c2;
+
+  /* Shape */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 999px;
+
+  --shadow-xs: 0 1px 2px rgba(15, 36, 63, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 36, 63, 0.06), 0 1px 3px rgba(15, 36, 63, 0.04);
+  --shadow: 0 1px 2px rgba(15, 36, 63, 0.05), 0 4px 12px rgba(15, 36, 63, 0.06);
+  --shadow-md: 0 4px 10px rgba(15, 36, 63, 0.06), 0 12px 28px rgba(15, 36, 63, 0.08);
+  --shadow-lg: 0 12px 24px rgba(15, 36, 63, 0.1), 0 32px 64px rgba(15, 36, 63, 0.16);
+  --ring: 0 0 0 3px rgba(40, 79, 130, 0.22);
+  --ring-danger: 0 0 0 3px rgba(180, 35, 24, 0.18);
+
+  /* Spacing (4px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+
+  /* Type */
+  --font-sans: 'Inter Variable', 'Inter', 'Segoe UI', system-ui, -apple-system, Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-base: 14px;
+  --text-md: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+
+  /* Layout */
+  --sidebar-width: 248px;
+  --sidebar-collapsed-width: 68px;
+  --topbar-height: 56px;
+  --content-max: 1440px;
+
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --duration: 140ms;
+}
+
+/* Status classes set local variables, so every status surface (badge, chip,
+   select, stepper, stat card) reads the same three colours. */
+.status-planned {
+  --status-fg: var(--planned-fg);
+  --status-bg: var(--planned-bg);
+  --status-border: var(--planned-border);
+}
+.status-in-design {
+  --status-fg: var(--design-fg);
+  --status-bg: var(--design-bg);
+  --status-border: var(--design-border);
+}
+.status-ready-for-review {
+  --status-fg: var(--review-fg);
+  --status-bg: var(--review-bg);
+  --status-border: var(--review-border);
+}
+.status-approved {
+  --status-fg: var(--approved-fg);
+  --status-bg: var(--approved-bg);
+  --status-border: var(--approved-border);
+}
+.status-published {
+  --status-fg: var(--published-fg);
+  --status-bg: var(--published-bg);
+  --status-border: var(--published-border);
+}

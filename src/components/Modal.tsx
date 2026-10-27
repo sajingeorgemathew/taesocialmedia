@@ -1,3 +1,4 @@
+import { X } from 'lucide-react'
 import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 interface ModalProps {
@@ -5,7 +6,9 @@ interface ModalProps {
   onClose: () => void
   children: ReactNode
   footer?: ReactNode
-  size?: 'small' | 'large'
+  size?: 'small' | 'large' | 'wide'
+  /** Optional line under the title. */
+  description?: ReactNode
 }
 
 // Number of open modals; nested dialogs (e.g. a confirm over the editor)
@@ -36,7 +39,7 @@ function unlockPageScroll() {
   }
 }
 
-export function Modal({ title, onClose, children, footer, size = 'large' }: ModalProps) {
+export function Modal({ title, onClose, children, footer, size = 'large', description }: ModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
 
@@ -76,9 +79,12 @@ export function Modal({ title, onClose, children, footer, size = 'large' }: Moda
         tabIndex={-1}
       >
         <header className="modal-header">
-          <h2 id={titleId}>{title}</h2>
+          <div className="modal-heading">
+            <h2 id={titleId}>{title}</h2>
+            {description && <div className="modal-description">{description}</div>}
+          </div>
           <button type="button" className="icon-button" onClick={onClose} aria-label="Close">
-            ×
+            <X aria-hidden="true" />
           </button>
         </header>
         <div className="modal-body">{children}</div>

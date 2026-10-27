@@ -1,3 +1,4 @@
+import { TriangleAlert } from 'lucide-react'
 import { Modal } from './Modal'
 
 interface ConfirmDialogProps {
@@ -16,7 +17,7 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
       size="small"
       footer={
         <>
-          <button type="button" className="button button-ghost" onClick={onCancel} data-autofocus>
+          <button type="button" className="button button-secondary" onClick={onCancel} data-autofocus>
             Cancel
           </button>
           <button type="button" className="button button-danger" onClick={onConfirm}>
@@ -25,7 +26,12 @@ export function ConfirmDialog({ title, message, confirmLabel, onConfirm, onCance
         </>
       }
     >
-      <p className="confirm-message">{message}</p>
+      <div className="confirm-body">
+        <span className="confirm-icon" aria-hidden="true">
+          <TriangleAlert />
+        </span>
+        <p className="confirm-message">{message}</p>
+      </div>
     </Modal>
   )
 }
