@@ -10,7 +10,7 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:email": "node --test supabase/tests/email_routing.test.ts supabase/tests/email_templates.test.ts",
+    "test:email": "node --test supabase/tests/email_routing.test.ts supabase/tests/email_templates.test.ts supabase/tests/email_snapshot.test.ts",
     "email:preview": "node dev/email-preview.mts"
   },
   "dependencies": {
