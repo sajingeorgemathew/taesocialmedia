@@ -90,7 +90,7 @@ the email has no links, no image and a text "T" mark.
 
 | Check | Result |
 | --- | --- |
-| `npm run test:email` | 26 / 26 pass (routing 13 unchanged, templates 10, snapshot 3) |
+| `npm run test:email` | 26 / 26 pass (routing 15 unchanged, templates 8, snapshot 3) |
 | Subject + plain text of 18 sample emails vs pre-redesign snapshot | identical |
 | `npm run lint` / `npm run build` / `npm test` | clean / built / 16 / 16 pass |
 | Frozen files (§2) | `git diff main` empty |
