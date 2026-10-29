@@ -2,7 +2,7 @@
 // reminders, each rendered as HTML plus a plain-text alternative. No artwork
 // or attachments are included.
 import { STATUSES, type NotificationEventRow, type PostRow, type PostStatus } from './model.ts'
-import { COLORS, STATUS_COLORS, badge, emptyRow, escapeHtml, noteRow, renderLayout, sectionHeading } from './layout.ts'
+import { COLORS, STATUS_COLORS, badge, detailRow, emptyRow, escapeHtml, noteRow, renderLayout, sectionHeading } from './layout.ts'
 import { addDays, formatDateKey } from './time.ts'
 
 export interface RenderedEmail {
@@ -38,15 +38,20 @@ export function nextAction(post: PostRow): string {
 
 function postCard(post: PostRow, today: string): string {
   const overdue = isOverdue(post, today)
-  const designer = post.designer.trim() || 'Unassigned'
-  return `<tr><td class="px" style="padding:8px 32px 0;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${COLORS.border};border-left:4px solid ${STATUS_COLORS[post.status].fg};border-radius:8px;">
-<tr><td style="padding:14px 16px;">
-  <div style="font-size:15px;font-weight:600;line-height:21px;color:${COLORS.navy};">${escapeHtml(post.title)}</div>
-  <div style="font-size:13px;color:${COLORS.muted};padding-top:3px;">${escapeHtml(post.program)} · ${escapeHtml(formatDateKey(post.publish_date))}</div>
-  <div style="padding-top:10px;font-size:13px;">${badge(post.status, STATUS_COLORS[post.status])}${overdue ? ` ${badge('Overdue', STATUS_COLORS.Overdue)}` : ''} <span style="color:${COLORS.muted};">&nbsp;Designer:</span> ${escapeHtml(designer)}</div>
-  <div style="font-size:13px;line-height:19px;margin-top:10px;padding-top:10px;border-top:1px solid #efece5;color:${COLORS.text};"><strong style="color:${COLORS.navy};">Next:</strong> ${escapeHtml(nextAction(post))}</div>
+  const designer = post.designer.trim()
+  const designerHtml = designer ? escapeHtml(designer) : `<span style="color:${COLORS.muted};font-style:italic;">Unassigned</span>`
+  return `<tr><td class="px" style="padding:6px 32px 4px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${COLORS.border};border-left:4px solid ${STATUS_COLORS[post.status].fg};border-radius:10px;border-collapse:separate;">
+<tr><td style="padding:16px 18px 12px;">
+  <div style="line-height:22px;">${badge(post.status, STATUS_COLORS[post.status])}${overdue ? ` ${badge('Overdue', STATUS_COLORS.Overdue)}` : ''}</div>
+  <div style="font-size:16px;font-weight:600;line-height:22px;color:${COLORS.navy};padding:8px 0 8px;">${escapeHtml(post.title)}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+${detailRow('Program', escapeHtml(post.program))}
+${detailRow('Publish date', `<span style="${overdue ? `color:${COLORS.danger};font-weight:600;` : ''}">${escapeHtml(formatDateKey(post.publish_date))}</span>`)}
+${detailRow('Designer', designerHtml)}
+  </table>
 </td></tr>
+<tr><td bgcolor="${COLORS.panel}" style="padding:10px 18px;background:${COLORS.panel};border-top:1px solid ${COLORS.divider};border-radius:0 0 10px 6px;font-size:13px;line-height:19px;color:${COLORS.text};"><strong style="color:${COLORS.navy};">Next:</strong> ${escapeHtml(nextAction(post))}</td></tr>
 </table>
 </td></tr>`
 }
@@ -180,12 +185,15 @@ export function buildDigest(o: DigestOptions): RenderedEmail {
   ]
 
   // Two rows of three tiles: readable on phones without media queries.
-  const tile = (t: (typeof summary)[number]) =>
-    `<td width="33%" style="padding:4px;"><div style="border-radius:10px;background:${t.colors.bg};padding:12px 14px;">
-  <div style="font-size:11px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;color:${t.colors.fg};">${escapeHtml(t.label)}</div>
-  <div style="font-size:26px;font-weight:700;line-height:32px;color:${COLORS.navy};">${t.value}</div>
-</div></td>`
-  const summaryHtml = `<tr><td class="px" style="padding:20px 28px 0;">
+  const tile = (t: (typeof summary)[number]) => {
+    const alert = t.label === 'Overdue' && t.value > 0
+    return `<td class="tile" width="33%" valign="top" style="padding:4px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid ${alert ? '#f3c7c1' : COLORS.border};border-radius:10px;border-collapse:separate;background:${alert ? COLORS.dangerBg : '#ffffff'};"><tr><td style="padding:12px 14px;">
+  <div style="font-size:12px;font-weight:600;line-height:16px;color:${COLORS.muted};"><span style="display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:4px;background:${t.colors.fg};vertical-align:1px;"></span><span>${escapeHtml(t.label)}</span></div>
+  <div class="tile-n" style="font-size:26px;font-weight:700;line-height:32px;padding-top:4px;color:${alert ? COLORS.danger : COLORS.navy};">${t.value}</div>
+</td></tr></table></td>`
+  }
+  const summaryHtml = `<tr><td class="px" style="padding:24px 28px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tr>${summary.slice(0, 3).map(tile).join('')}</tr>
 <tr>${summary.slice(3).map(tile).join('')}</tr>
@@ -199,6 +207,7 @@ export function buildDigest(o: DigestOptions): RenderedEmail {
 
   const html = renderLayout({
     preheader: `${overdueCount} overdue · ${counts['Ready for Review']} awaiting approval · ${counts['In Design']} in design`,
+    eyebrow: o.test ? 'Test email' : 'Progress digest',
     heading: 'Social media progress digest',
     subheading,
     banner: o.test ? 'This is a test email sent from the Email Reminders page. It shows the live digest as it would be sent now.' : undefined,
@@ -263,7 +272,22 @@ export function stillRelevant(item: NotificationItem): boolean {
 }
 
 function reviewNoteRow(note: string): string {
-  return `<tr><td class="px" style="padding:8px 32px 0;"><div style="padding:12px 16px;border-radius:8px;background:#fdf2e2;border:1px solid #f4d8ae;font-size:13px;line-height:19px;color:${COLORS.text};white-space:pre-wrap;"><strong style="color:#b05a06;">Requested changes:</strong> ${escapeHtml(note)}</div></td></tr>`
+  const lines = note.split(/\r?\n/).map(escapeHtml).join('<br>')
+  return `<tr><td class="px" style="padding:6px 32px 4px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;"><tr><td bgcolor="#fdf6ea" style="padding:14px 18px;border-radius:10px;background:#fdf6ea;border:1px solid #f1dcb6;border-left:4px solid #b05a06;">
+  <div style="font-size:12px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;line-height:16px;color:#b05a06;">Requested changes</div>
+  <div style="padding-top:6px;font-size:14px;line-height:21px;color:${COLORS.text};">${lines}</div>
+</td></tr></table></td></tr>`
+}
+
+const EVENT_COLOR: Record<NotificationEventRow['event_type'], string> = {
+  assignment: STATUS_COLORS['In Design'].fg,
+  ready_for_review: STATUS_COLORS['Ready for Review'].fg,
+  approved: STATUS_COLORS.Approved.fg,
+  changes_requested: COLORS.danger,
+}
+
+function eventLabelRow(type: NotificationEventRow['event_type'], label: string, first: boolean): string {
+  return `<tr><td class="px" style="padding:${first ? 28 : 32}px 32px 6px;"><h2 style="margin:0;font-family:inherit;font-size:13px;font-weight:700;line-height:18px;color:${COLORS.navy};"><span style="display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:4px;background:${EVENT_COLOR[type]};vertical-align:1px;"></span>${escapeHtml(label)}</h2></td></tr>`
 }
 
 export function buildNotificationEmail(items: NotificationItem[], today: string, appUrl: string | null): RenderedEmail {
@@ -272,7 +296,7 @@ export function buildNotificationEmail(items: NotificationItem[], today: string,
   for (const { event, post } of items) {
     const label =
       event.event_type === 'assignment' ? `${EVENT_LABEL.assignment}: ${post.designer.trim()}` : EVENT_LABEL[event.event_type]
-    rows += `<tr><td class="px" style="padding:22px 32px 0;"><div style="font-size:12px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:${COLORS.navy};">${escapeHtml(label)}</div></td></tr>`
+    rows += eventLabelRow(event.event_type, label, rows === '')
     rows += postCard(post, today)
     text.push(label.toUpperCase(), postLine(post, today))
     if (event.event_type === 'changes_requested' && post.review_note.trim()) {
@@ -302,6 +326,7 @@ export function buildNotificationEmail(items: NotificationItem[], today: string,
     subject,
     html: renderLayout({
       preheader: parts.join(' · '),
+      eyebrow: 'Workflow notification',
       heading: 'Workflow updates',
       subheading: `${items.length} post${items.length === 1 ? '' : 's'} changed and may need your attention.`,
       rows,
@@ -337,6 +362,7 @@ export function buildDeadlineEmail(posts: PostRow[], today: string, daysAhead: n
     subject,
     html: renderLayout({
       preheader: subject,
+      eyebrow: 'Deadline reminder',
       heading: 'Publishing deadline reminder',
       subheading: `${formatDateKey(today)} · unfinished posts due ${window}`,
       rows: body.html,

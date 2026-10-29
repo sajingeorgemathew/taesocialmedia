@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { buildDeadlineEmail, buildDigest, buildNotificationEmail, type NotificationItem } from '../functions/_shared/emails.ts'
-import { logoUrl, safeAppUrl } from '../functions/_shared/layout.ts'
+import { brandIconUrl, safeAppUrl } from '../functions/_shared/layout.ts'
 import type { NotificationEventRow, PostRow } from '../functions/_shared/model.ts'
 
 const APP_URL = safeAppUrl('https://taesocialmedia.vercel.app')
@@ -31,10 +31,33 @@ function item(type: NotificationEventRow['event_type'], p: PostRow, details: Rec
   return { event: { id: 1, post_id: p.id, event_type: type, details, actor: null, created_at: '2026-10-27T12:00:00Z' }, post: p }
 }
 
-test('logo is served from the configured application URL', () => {
-  assert.equal(logoUrl(APP_URL), 'https://taesocialmedia.vercel.app/logo_final_T.png')
-  assert.equal(logoUrl('https://social.example.ca/app/'), 'https://social.example.ca/logo_final_T.png')
-  assert.equal(logoUrl(null), null)
+test('brand icon is served from the configured application URL', () => {
+  assert.equal(brandIconUrl(APP_URL), 'https://taesocialmedia.vercel.app/favicon.png')
+  assert.equal(brandIconUrl('https://social.torontoacademy.ca'), 'https://social.torontoacademy.ca/favicon.png')
+  assert.equal(brandIconUrl('https://social.example.ca/app/'), 'https://social.example.ca/favicon.png')
+  assert.equal(brandIconUrl(null), null)
+})
+
+test('header link and main button both open the configured application URL', () => {
+  for (const email of [
+    buildDigest({ posts: [post()], today: TODAY, slotLabel: '9:00 a.m.', appUrl: APP_URL, now: new Date() }),
+    buildNotificationEmail([item('approved', post({ status: 'Approved' }))], TODAY, APP_URL),
+    buildDeadlineEmail([post()], TODAY, 2, APP_URL),
+  ]) {
+    const links = [...email.html.matchAll(/<a href="([^"]+)"[^>]*>([^<]+)</g)]
+    assert.equal(links.length, 2)
+    for (const [, href, label] of links) {
+      assert.equal(href, 'https://taesocialmedia.vercel.app/')
+      assert.ok(label.startsWith('Open Social Media Manager'))
+    }
+    // One image only: the brand icon, with explicit size and alt text.
+    const images = [...email.html.matchAll(/<img [^>]*>/g)].map((m) => m[0])
+    assert.equal(images.length, 1)
+    assert.match(images[0], /src="https:\/\/taesocialmedia\.vercel\.app\/favicon\.png"/)
+    assert.match(images[0], /width="36" height="36" alt="TAE logo"/)
+    assert.ok(email.html.includes('Toronto Academy of Education'))
+    assert.ok(!/<script|<link /i.test(email.html))
+  }
 })
 
 test('digest keeps every section, count and post field', () => {
@@ -61,7 +84,7 @@ test('digest keeps every section, count and post field', () => {
   assert.ok(email.html.includes('Review the post and approve it'))
   // Summary tiles and branding.
   for (const label of ['Planned', 'In Design', 'Ready for Review', 'Approved', 'Published', 'Overdue']) assert.ok(email.html.includes(`>${label}<`), label)
-  assert.ok(email.html.includes('src="https://taesocialmedia.vercel.app/logo_final_T.png"'))
+  assert.ok(email.html.includes('src="https://taesocialmedia.vercel.app/favicon.png"'))
   assert.ok(email.html.includes('href="https://taesocialmedia.vercel.app/"'))
   assert.ok(email.text.includes('Open TAE Social Media Manager (sign-in required): https://taesocialmedia.vercel.app/'))
 })
@@ -109,6 +132,7 @@ test('deadline reminder lists overdue and due-soon posts', () => {
 test('without an application URL there is no logo request and no button', () => {
   const email = buildDeadlineEmail([post()], TODAY, 2, null)
   assert.ok(!email.html.includes('<img'))
-  assert.ok(!email.html.includes('Open TAE Social Media Manager'))
+  assert.ok(!email.html.includes('Open Social Media Manager'))
+  assert.ok(!email.html.includes('<a '))
   assert.ok(email.html.includes('TAE Social Media Manager'))
 })
